@@ -60,7 +60,10 @@ envelope shape, so graders can add files freely.
 - **APY from `apr_estimate.low`.** Strategies carry an APR *range*, not an APY. We take the
   conservative floor — a compliance-driven bank should not present a rate the customer
   cannot reliably meet — and convert APR→APY with `APY = (1 + APR/n)^n - 1`, compounding
-  only when `auto_compound` is effectively on.
+  only when `auto_compound` is effectively on. The hard ≥3% filter compares the APR in
+  exact decimal (`big.js`): a rate like POL's `2.9999999999999999`, which parses to the
+  IEEE-754 double `3.0`, is correctly treated as below 3% rather than rounded onto the
+  boundary.
 - **Tier model by structural signal.** A strategy is instant-access (Standard-eligible) when
   its lock type has no unbonding period, exit queue, or fixed term — covering `instant` and
   `flex`. `bonded`/`hybrid`/`timed` are Premium/Private only.
@@ -76,6 +79,7 @@ Full reasoning: `solution-design-note.md`.
 |---|---|---|
 | `express` | HTTP server and routing | Industry-standard, MIT-licensed, no native dependencies, maintained by the OpenJS Foundation. Used only to receive one local request. |
 | `zod` | Runtime validation of the Meridian JSON, which drives the structured-error requirement | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
+| `big.js` | Exact-decimal comparison for the ≥3% APY threshold — avoids IEEE-754 boundary error | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
 
 Dev-only: `typescript`, `tsx`, `vitest`, `supertest` — not present in the runtime image.
 

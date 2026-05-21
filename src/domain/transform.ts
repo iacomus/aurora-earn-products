@@ -1,10 +1,8 @@
 // src/domain/transform.ts
 import { AppError } from "../errors";
 import type { RawStrategy, AssetMap } from "../meridian/schema";
-import { computeApy } from "./apy";
+import { computeApy, meetsApyThreshold } from "./apy";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
-
-const APY_THRESHOLD = 3; // percent
 
 /** The customer-facing earn product — the service's output shape. */
 export interface EarnProduct {
@@ -62,9 +60,10 @@ export function toProduct(
   // 3. Asset-status filter — the asset is not operational platform-wide.
   if (asset.status !== "enabled") return null;
 
-  // 4 & 5. APY + the hard ≥3% filter, on the unrounded value.
+  // 4 & 5. Compute the display/sort APY, then apply the hard ≥3% filter —
+  // meetsApyThreshold compares in exact decimal for non-compounding strategies.
   const apyExact = computeApy(strategy);
-  if (apyExact === null || apyExact < APY_THRESHOLD) return null;
+  if (apyExact === null || !meetsApyThreshold(strategy)) return null;
 
   // 6 & 7. Build the output object (apyValue rounded to 2 decimals for display).
   const apyValue = Math.round(apyExact * 100) / 100;

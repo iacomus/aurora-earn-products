@@ -58,7 +58,15 @@ not just the lock-type label, so new Meridian lock types are handled safely.
 ## Known edge cases (already handled)
 
 - A strategy with **no reward-rate data** is dropped (cannot show an APY we don't have).
-- APR values that sit **exactly on 3%** are included (the threshold is "≥ 3%").
+- The **≥ 3% threshold is evaluated in exact decimal**, not in IEEE-754 floats.
+  `POL`'s `apr_estimate.low` is the string `2.9999999999999999`: it *parses* to
+  the double `3.0`, but its true decimal value is below 3, so **POL is excluded**.
+  POL's APR range (`low` just under 3, `high` just over 3) straddles the
+  threshold, so the rate sits below 3% for roughly half its fluctuation band — a
+  conservative compliance posture (EU MiCA, UK FCA) treats such a product as
+  sub-threshold rather than advertising it as "≥ 3%". The comparison uses the
+  `big.js` decimal library; a production Meridian API returning numeric values
+  directly would remove this string-parsing ambiguity entirely.
 - Lock types beyond the documented `instant`/`bonded` (`flex`, `hybrid`, `timed`) are
   classified by their lock structure; unknown future types default to "locked".
 - A strategy referencing an **unknown asset code**, a file with **malformed JSON**, or a

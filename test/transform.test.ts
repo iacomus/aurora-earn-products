@@ -126,6 +126,20 @@ describe("toProduct", () => {
     expect(p?.apyValue).toBe(3);
   });
 
+  it("excludes POL — apr.low '2.9999999999999999' is below 3% as an exact decimal", () => {
+    // Parses to the double 3.0, but the exact decimal is < 3 — POL is dropped.
+    const p = toProduct(
+      strat({
+        id: "S",
+        asset: "POL",
+        apr_estimate: { low: "2.9999999999999999" },
+        lock_type: { type: "flex" },
+      }),
+      assets,
+    );
+    expect(p).toBeNull();
+  });
+
   it("sets eligibleTiers to Premium/Private for a bonded strategy", () => {
     const p = toProduct(
       strat({

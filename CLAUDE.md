@@ -58,9 +58,11 @@ Mapping a strategy to the required output shape needs care:
 - **Deliberate edge cases in the mock data:**
   - `MINA` has **no `apr_estimate` field at all** — handle the missing-APY case.
   - `ALGO` APY is `0.0000`; `AVAX` is `0.5–1.5` — both below the 3% threshold.
-  - `POL` APY strings are `2.9999999999999999` / `3.0000000000000001`; both parse to the
-    IEEE-754 double `3.0`, landing exactly on the threshold. The filter must define whether
-    the bound is `>= 3` or `> 3` (the brief says ≥ 3%).
+  - `POL` APY strings are `2.9999999999999999` / `3.0000000000000001`. Both parse to the
+    IEEE-754 double `3.0`, but as **exact decimals** they straddle the threshold — `low` is
+    below 3, `high` is above. The service compares the APR in exact decimal (`big.js`), not
+    as a float: the `≥ 3%` filter is inclusive of an exact `3.0`, but `POL` (filtered on
+    `apr_estimate.low`) is below 3 and is **excluded**.
   - `XXTZ` (`flex`) is `2.5–3.5` — straddles the threshold depending on which apr value
     you pick.
 - `user_min_allocation` is a string → output `minimumAmount` (keep as string).

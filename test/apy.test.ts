@@ -3,6 +3,7 @@ import {
   isCompounding,
   compoundingPeriodsPerYear,
   computeApy,
+  meetsApyThreshold,
 } from "../src/domain/apy";
 import type { RawStrategy } from "../src/meridian/schema";
 
@@ -75,5 +76,53 @@ describe("computeApy", () => {
       auto_compound: { type: "optional", default: false },
     };
     expect(computeApy(s)).toBeCloseTo(9.5, 5);
+  });
+
+  it("returns the parsed APR percentage directly for a non-compounding strategy", () => {
+    // computeApy yields the display/sort value; for a non-compounding strategy
+    // that is the APR itself, with no /100-then-*100 round-trip. POL's
+    // "2.9999999999999999" parses to the IEEE-754 double 3.0.
+    const s: RawStrategy = {
+      ...base,
+      lock_type: { type: "flex" },
+      apr_estimate: { low: "2.9999999999999999" },
+    };
+    expect(computeApy(s)).toBe(3);
+  });
+});
+
+describe("meetsApyThreshold", () => {
+  const nonCompounding = (low: string): RawStrategy => ({
+    ...base,
+    lock_type: { type: "flex" },
+    apr_estimate: { low },
+  });
+
+  it("includes a non-compounding strategy at or above 3%", () => {
+    expect(meetsApyThreshold(nonCompounding("3.0000"))).toBe(true);
+    expect(meetsApyThreshold(nonCompounding("8.0000"))).toBe(true);
+  });
+
+  it("excludes a non-compounding strategy below 3%", () => {
+    expect(meetsApyThreshold(nonCompounding("2.5000"))).toBe(false);
+  });
+
+  it("excludes POL — apr.low '2.9999999999999999' is below 3 as an exact decimal", () => {
+    // Parses to the IEEE-754 double 3.0, but big.js compares the true decimal.
+    expect(meetsApyThreshold(nonCompounding("2.9999999999999999"))).toBe(false);
+  });
+
+  it("includes a value just above 3 that the double 3.0 would otherwise mask", () => {
+    expect(meetsApyThreshold(nonCompounding("3.0000000000000001"))).toBe(true);
+  });
+
+  it("excludes a strategy with no apr_estimate", () => {
+    const { apr_estimate, ...noApr } = base;
+    expect(meetsApyThreshold(noApr as RawStrategy)).toBe(false);
+  });
+
+  it("evaluates a compounding strategy on its computed APY", () => {
+    // base: 8% APR, weekly compounding → APY ≈ 8.32% ≥ 3%.
+    expect(meetsApyThreshold(base)).toBe(true);
   });
 });
