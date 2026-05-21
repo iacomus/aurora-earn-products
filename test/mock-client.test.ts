@@ -90,4 +90,26 @@ describe('FileMockMeridianClient', () => {
     const client = new FileMockMeridianClient(dir);
     expect(await client.listStrategies()).toHaveLength(1);
   });
+
+  it('throws DATA_MALFORMED when an assets file has a corrupt entry', async () => {
+    await write('assets.json', {
+      error: [],
+      result: {
+        XETH: { altname: 'ETH', status: 'enabled' },
+        BAD: { status: 'enabled' },
+      },
+    });
+    const client = new FileMockMeridianClient(dir);
+    await expect(client.listAssets()).rejects.toMatchObject({ code: 'DATA_MALFORMED' });
+  });
+
+  it('caches the loaded data — a second call does not re-read the directory', async () => {
+    await write('strategies.json', strategiesEnvelope(strategy('S1')));
+    await write('assets.json', assetsEnvelope({ XETH: { altname: 'ETH', status: 'enabled' } }));
+    const client = new FileMockMeridianClient(dir);
+    const first = await client.listStrategies();
+    await fs.rm(path.join(dir, 'strategies.json'));
+    const second = await client.listStrategies();
+    expect(second).toBe(first);
+  });
 });

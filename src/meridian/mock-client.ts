@@ -66,7 +66,12 @@ export class FileMockMeridianClient implements MeridianEarnClient {
   }
 
   private async parseFile(file: string): Promise<unknown> {
-    const text = await fs.readFile(path.join(this.dataDir, file), 'utf8');
+    let text: string;
+    try {
+      text = await fs.readFile(path.join(this.dataDir, file), 'utf8');
+    } catch {
+      throw new AppError('DATA_UNAVAILABLE', `Could not read ${file}`);
+    }
     try {
       return JSON.parse(text);
     } catch {
@@ -109,12 +114,16 @@ function classify(raw: unknown): Capture {
   return 'ignore';
 }
 
-/** An assets result is a keyed object whose every value is an object with a string `altname`. */
+/** Looks like an assets result: a non-empty keyed object with at least one asset-shaped value. */
 function isAssetsShape(result: object): boolean {
-  return Object.values(result).every(
-    (v) =>
-      typeof v === 'object' &&
-      v !== null &&
-      typeof (v as { altname?: unknown }).altname === 'string',
+  const values = Object.values(result);
+  return (
+    values.length > 0 &&
+    values.some(
+      (v) =>
+        typeof v === 'object' &&
+        v !== null &&
+        typeof (v as { altname?: unknown }).altname === 'string',
+    )
   );
 }
