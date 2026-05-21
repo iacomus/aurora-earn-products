@@ -36,8 +36,8 @@ curl 'http://localhost:3000/earn-products?tier=private'
 }
 ```
 
-On bad input or unavailable/malformed data the service returns a structured error — never a
-stack trace: `{ "error": { "code": "INVALID_TIER", "message": "..." } }`.
+On bad input, an unknown route, or unavailable/malformed data the service returns a
+structured error — never a stack trace: `{ "error": { "code": "INVALID_TIER", "message": "..." } }`.
 
 ## Architecture
 
@@ -117,11 +117,6 @@ The service makes **no outbound network calls at runtime** — all data comes fr
   take ~25 s to compute. A frequency over ~2 years rounds to under one period a year and is
   treated as non-compounding (APY = APR). Meridian's data uses weekly-to-monthly frequencies,
   well inside both bounds.
-- **Unknown paths return Express's default `404`.** The service exposes one route; an
-  unknown path falls through to Express's built-in `404` (plain text, not a stack trace).
-  A structured JSON `404` body is a small production follow-up. Errors that escape the
-  route handler itself are caught by a backstop error-handler middleware and returned as a
-  structured error.
 - **`PORT=0`** (asking the OS for a free port) is treated as unset and falls back to 3000.
 - **Data is read once and cached** for the process lifetime — no auth, rate limiting, or
   observability either, all out of scope for a PoC. A concurrent burst of requests during

@@ -333,6 +333,7 @@ never a stack trace:
 | Condition | HTTP | `code` |
 |---|---|---|
 | Missing or invalid `tier` query param | 400 | `INVALID_TIER` |
+| Request path matches no route | 404 | `NOT_FOUND` |
 | `DATA_DIR` missing, or no JSON files found | 500 | `DATA_UNAVAILABLE` |
 | A data file fails JSON parse / schema validation | 500 | `DATA_MALFORMED` |
 | A strategy references an asset code absent from the asset map | 500 | `DATA_MALFORMED` |
@@ -340,12 +341,16 @@ never a stack trace:
 | Any unexpected error | 500 | `INTERNAL_ERROR` |
 
 `tier` matching is case-insensitive; output tier names are capitalised (`Standard`). A
-top-level Express error handler guarantees no raw exception ever reaches the client.
+request matching no route is turned into a `NOT_FOUND`, and a top-level Express error
+handler guarantees no raw exception ever reaches the client — so every response, success
+or failure, uses the structured shape.
 
 ## 8. HTTP layer
 
 - Express. One route: `GET /earn-products`.
 - `tier` is required. Missing/invalid → `400 INVALID_TIER`.
+- A request matching no route falls through to a middleware that raises `404 NOT_FOUND`,
+  so an unknown path returns the structured error shape too.
 - Service listens on `0.0.0.0:3000`.
 - A catch-all error handler — registered last in `app.ts` — maps `AppError`s to their
   status + structured body, and any other throwable to `500 INTERNAL_ERROR`. The route

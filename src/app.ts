@@ -7,12 +7,17 @@ import express, {
 } from "express";
 import type { MeridianEarnClient } from "./meridian/client";
 import { earnProductsHandler } from "./routes/earn-products";
-import { toStructuredError } from "./errors";
+import { AppError, toStructuredError } from "./errors";
 
 /** Builds the Express app wired to a Meridian client. */
 export function createApp(client: MeridianEarnClient): Express {
   const app = express();
   app.get("/earn-products", earnProductsHandler(client));
+  // No route matched: turn the miss into a structured 404 (rendered below), so
+  // an unknown path returns the same error shape as everything else.
+  app.use((req, _res, next) => {
+    next(new AppError("NOT_FOUND", `No route for ${req.method} ${req.path}`));
+  });
   // Registered last: Express routes any error escaping a handler above to it.
   app.use(structuredErrorHandler);
   return app;

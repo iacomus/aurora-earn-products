@@ -121,8 +121,8 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   a separate feature with its own endpoint and UX.
 - **Localised display.** `apyDisplay` currently uses a fixed `4.25%` format; format per the
   customer's locale.
-- **HTTP surface.** The service exposes a single route, wrapped by a backstop error-handler
-  middleware so no unexpected exception escapes as a stack trace. An unknown path still
-  falls through to Express's default `404`; adding a structured JSON `404` body is a small
-  follow-up as more routes are introduced.
+- **HTTP method handling.** Known routes, unknown routes (a structured `404`), and errors
+  all return the one structured error shape. One refinement: a non-`GET` request to
+  `/earn-products` currently gets a `404` rather than a `405 Method Not Allowed` with an
+  `Allow` header.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.

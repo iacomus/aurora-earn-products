@@ -132,4 +132,12 @@ describe("GET /earn-products", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
   });
+
+  it("404s with a structured error for an unknown path", async () => {
+    const res = await request(createApp(new FileMockMeridianClient(dir))).get(
+      "/no-such-route",
+    );
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe("NOT_FOUND");
+  });
 });
