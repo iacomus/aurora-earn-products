@@ -37,8 +37,9 @@ Each is settled; the reasoning belongs in `README.md` and `solution-design-note.
 | Compounding gate | Gate on `auto_compound` | Compound only when effectively on (`enabled`, or `optional` with `default: true`). Otherwise APY = APR — no compounding the customer will not actually receive. |
 | Error handling | Fail-closed, structured error | On any malformed/unavailable data, return a structured error object naming the cause — never a stack trace, never silent partial degradation. |
 | Threshold boundary | `APY ≥ 3%` | Per the brief. Applied to the *unrounded* computed APY. |
-| `allocation_restriction_info` / `can_allocate` | Tolerated, not acted on | The data's `tier` restriction is Meridian's *account verification* tier, unrelated to Aurora's customer tiers. Not a filter or tier input — using it would conflate two unrelated systems. Documented in §13. |
-| Asset `status` ≠ `enabled` | Drop the strategy | A non-enabled asset (`disabled` / `workinprogress` / `depositonly` / …) is not fully operational platform-wide. Unlike volatile `can_allocate`, `status` is a stable asset property — surfacing an earn product for it is a real correctness/compliance issue. Deliberate data-quality safeguard (§13). |
+| `can_allocate: false` | Drop the strategy | `strategies.json` mocks the *authenticated* `POST /private/Earn/Strategies` — the response is scoped to Aurora's master account. `can_allocate: false` is read at face value: Aurora's account cannot allocate, so the strategy is not a real catalog item. Documented in §13. |
+| `allocation_restriction_info` | Explanatory only — not a tier input | Carries the *reason* `can_allocate` is false. Its `tier` value is Meridian's account-*verification* tier, unrelated to Aurora's customer tiers — never mapped onto the tier model. Documented in §13. |
+| Asset `status` ≠ `enabled` | Drop the strategy | A non-enabled asset (`disabled` / `workinprogress` / `depositonly` / …) is not operational platform-wide — surfacing an earn product for it is a correctness/compliance issue. Deliberate data-quality safeguard (§13). |
 | Envelope `error` array non-empty | Structured error | A populated `error` array is an upstream API failure (e.g. `["EAPI:Bad request"]`). The brief says handle upstream errors — we fail-closed and surface the Meridian error string. |
 
 ### Naming trap (documented for the reader)
@@ -187,9 +188,10 @@ via its `unbonding_period`). Only withdrawal-side signals gate Standard eligibil
 Premium and Private see everything qualifying, so `eligibleTiers` is always one of these
 two values.
 
-> **Not an input:** `allocation_restriction_info` and `can_allocate` play no part in this
-> model. Their `tier` restriction is Meridian's account-*verification* tier, not an Aurora
-> customer tier — see §13.
+> **Not a tier input:** `allocation_restriction_info` plays no part in this model — its
+> `tier` value is Meridian's account-*verification* tier, not an Aurora customer tier (§13).
+> `can_allocate` *is* used, but as a catalog availability filter (§5.3) — never as a tier
+> signal.
 
 ### 5.3 Transform + filter + sort (`domain/transform.ts`, `domain/earn-products.ts`)
 
@@ -198,16 +200,20 @@ Pipeline per strategy:
 1. Resolve `strategy.asset` (Meridian internal code) against the merged asset map → use the
    `altname` for the output `asset` field (`XETH`→`ETH`, `POL`→`MATIC`, `XADA`→`ADA`).
    A code **not** in the asset map → **structured error** (broken referential integrity is
-   malformed data; fail-closed).
-2. **Asset-status filter:** if the resolved asset's `status` is not `enabled`, **drop** the
-   strategy (a non-operational asset is not surfaceable — see §2). This is a *drop*, not an
-   error: the asset metadata is valid, the asset just is not available.
-3. Compute APY (§5.1). A strategy with **no `apr_estimate`** has no APY (see MINA).
-4. **APY filter (hard, never relaxed):** drop any strategy whose APY is `< 3%`, and drop any
+   malformed data; fail-closed). Resolution runs for every strategy, so a dangling reference
+   is caught even on a row a later filter would drop.
+2. **Availability filter:** if `can_allocate` is `false`, **drop** the strategy — the
+   authenticated `/private/` response states Aurora's account cannot allocate, so it is not
+   a real catalog item (see §2). A *drop*, not an error.
+3. **Asset-status filter:** if the resolved asset's `status` is not `enabled`, **drop** the
+   strategy (a non-operational asset is not surfaceable — see §2). Also a *drop*: the asset
+   metadata is valid, the asset just is not available.
+4. Compute APY (§5.1). A strategy with **no `apr_estimate`** has no APY (see MINA).
+5. **APY filter (hard, never relaxed):** drop any strategy whose APY is `< 3%`, and drop any
    strategy with no APY. Applied to the *unrounded* computed APY.
-5. Derive `eligibleTiers` from the tier model (§5.2).
-6. Build the `EarnProduct` output object (§6).
-7. After all strategies are transformed: filter to those whose `eligibleTiers` includes the
+6. Derive `eligibleTiers` from the tier model (§5.2).
+7. Build the `EarnProduct` output object (§6).
+8. After all strategies are transformed: filter to those whose `eligibleTiers` includes the
    **requested tier**, then **sort by `apyValue` descending**, tie-broken by `strategyId`
    ascending for deterministic ("stable") output.
 
@@ -323,7 +329,8 @@ TDD on the domain core — the logic that carries risk. Not exhaustive coverage;
   does not; unknown lock type → restricted.
 - **`transform.test.ts`** — asset code → altname; APY filter boundaries (POL = 3.00% in,
   XXTZ = 2.50% out, AVAX/ALGO out, MINA dropped for missing `apr_estimate`); dangling asset
-  code → error; non-`enabled` asset status → dropped; `displayName` synthesis.
+  code → error; `can_allocate: false` → dropped; non-`enabled` asset status → dropped;
+  `displayName` synthesis.
 - **`loader.test.ts`** — shape detection; multi-file merge; malformed file → structured
   error; non-empty `error` array → structured error; duplicate `id` / asset-key dedupe;
   non-matching file ignored.
@@ -349,44 +356,53 @@ change that outcome.
 
 ## 12. Worked example
 
-APY computed from `apr_estimate.low`, per §5.1. Filter: APY ≥ 3%.
+APY computed from `apr_estimate.low`, per §5.1. Pipeline drops, in order: `can_allocate:
+false`, asset `status` ≠ `enabled` (none in the provided data), APY `< 3%`, no APY.
 
-| Asset | Lock | APR low | `auto_compound` | APY | In? | Eligible tiers |
+| Asset | Lock | APR low | `auto_compound` | APY | `can_allocate` | Result |
 |---|---|---|---|---|---|---|
-| FIL | timed | 10.0 | disabled | 10.00% | ✓ | Premium, Private |
-| ATOM | bonded | 9.5 | optional:false | 9.50% | ✓ | Premium, Private |
-| DOT | instant | 8.0 | enabled (n=52) | 8.32% | ✓ | Standard, Premium, Private |
-| USDC | hybrid | 7.5 | disabled | 7.50% | ✓ | Premium, Private |
-| FLR | flex | 6.0 | enabled (no freq) | 6.00% | ✓ | Standard, Premium, Private |
-| SOL | bonded | 5.0 | enabled (n=52) | 5.12% | ✓ | Premium, Private |
-| KSM | instant | 4.25 | enabled (n=52) | 4.34% | ✓ | Standard, Premium, Private |
-| ETH | bonded | 4.0 | disabled | 4.00% | ✓ | Premium, Private |
-| ADA | instant | 3.0 | enabled (n=73) | 3.04% | ✓ | Standard, Premium, Private |
-| POL | flex | 3.0 | enabled (no freq) | 3.00% | ✓ | Standard, Premium, Private |
-| XXTZ | flex | 2.5 | enabled (no freq) | 2.50% | ✗ | below 3% |
-| AVAX | instant | 0.5 | enabled | 0.50% | ✗ | below 3% |
-| ALGO | flex | 0.0 | enabled | 0.00% | ✗ | below 3% |
-| MINA | flex | — | enabled | — | ✗ | no `apr_estimate` |
+| DOT | instant | 8.0 | enabled (n=52) | 8.32% | true | ✓ Standard, Premium, Private |
+| USDC | hybrid | 7.5 | disabled | 7.50% | true | ✓ Premium, Private |
+| ETH | bonded | 4.0 | disabled | 4.00% | true | ✓ Premium, Private |
+| ADA | instant | 3.0 | enabled (n=73) | 3.04% | true | ✓ Standard, Premium, Private |
+| POL | flex | 3.0 | enabled (no freq) | 3.00% | true | ✓ Standard, Premium, Private |
+| FIL | timed | 10.0 | disabled | 10.00% | false | ✗ dropped — `can_allocate: false` |
+| ATOM | bonded | 9.5 | optional:false | 9.50% | false | ✗ dropped — `can_allocate: false` |
+| SOL | bonded | 5.0 | enabled (n=52) | 5.12% | false | ✗ dropped — `can_allocate: false` |
+| KSM | instant | 4.25 | enabled (n=52) | 4.34% | false | ✗ dropped — `can_allocate: false` |
+| FLR | flex | 6.0 | enabled (no freq) | 6.00% | false | ✗ dropped — `can_allocate: false` |
+| XXTZ | flex | 2.5 | enabled (no freq) | 2.50% | true | ✗ dropped — APY < 3% |
+| AVAX | instant | 0.5 | enabled | 0.50% | true | ✗ dropped — APY < 3% |
+| ALGO | flex | 0.0 | enabled | 0.00% | true | ✗ dropped — APY < 3% |
+| MINA | flex | — | enabled | — | true | ✗ dropped — no `apr_estimate` |
 
-- `GET /earn-products?tier=premium` (or `private`) → all 10, in the order above.
-- `GET /earn-products?tier=standard` → instant-access only: DOT 8.32%, FLR 6.00%, KSM 4.34%,
+Five strategies qualify. Output sorted by APY descending:
+
+- `GET /earn-products?tier=premium` (or `private`) → DOT 8.32%, USDC 7.50%, ETH 4.00%,
   ADA 3.04%, POL 3.00%.
+- `GET /earn-products?tier=standard` → instant-access only: DOT 8.32%, ADA 3.04%, POL 3.00%.
+
+The `can_allocate` filter removes five strategies (FIL, ATOM, SOL, KSM, FLR) that would
+otherwise qualify — half the catalog. It is the design's highest-impact judgment call; §13
+records the reasoning.
 
 ## 13. Known limitations / out of scope
 
 Documented in `README.md` / `solution-design-note.md`:
 
-- **Meridian verification tier ≠ Aurora customer tier.** The data's
-  `allocation_restriction_info: ["tier"]` and `can_allocate` describe whether *Aurora's own
-  Meridian API account* is verified to the required level — Meridian's docs state Earn products
-  *"generally require Intermediate tier"* — **not** Aurora's Standard/Premium/Private
-  customer tiers. The two systems share the word "tier" but are unrelated. The service
-  deliberately does **not** use these fields for filtering or tiering; doing so would be a
-  correctness bug. Production notes: (1) Aurora's institutional Meridian account must be
-  verified to the required tier before go-live; (2) `can_allocate` is volatile account
-  state — it flips to `true` once the account is verified — so a real integration should
-  check it at allocation time, or surface availability, rather than letting a customer
-  commit funds to a strategy that would reject them.
+- **`can_allocate` is read at face value, account-scoped.** `strategies.json` mocks the
+  *authenticated* `POST /private/Earn/Strategies` — its response is inherently scoped to one
+  account (Aurora's master account). The service drops `can_allocate: false` strategies: if
+  Aurora's account cannot allocate, its customers cannot invest, so the strategy is not a
+  real catalog item. The brief's required output shape has no availability flag, so the
+  choice is binary — include or drop. A future revision could instead surface availability
+  state. This filter removes five of the ten APY-qualifying strategies in the sample data,
+  so it is the design's highest-impact decision.
+- **`allocation_restriction_info` is not an Aurora-tier signal.** It carries the *reason*
+  `can_allocate` is false. Its `tier` value is Meridian's account-*verification* tier —
+  Meridian's docs state Earn *"generally requires Intermediate tier"* — unrelated to Aurora's
+  Standard/Premium/Private *customer* tiers despite the shared word. The service never maps
+  it onto the tier model; doing so would conflate two unrelated systems.
 - **`flex` allocation model.** In Meridian's real product, `flex` ("Meridian Rewards") is an
   account-wide toggle with no manual allocation. Surfacing it as a selectable catalog item
   is a simplification; a production integration would treat `flex` differently in the UI.
