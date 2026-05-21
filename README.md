@@ -10,7 +10,7 @@ and `solution-design-note.md` for the integration handoff.
 ## Running
 
 ```bash
-docker-compose up
+docker-compose up      # or, on Docker Compose v2:  docker compose up
 ```
 
 The service starts on `http://localhost:3000` — no env vars, credentials, or setup needed.
@@ -58,37 +58,28 @@ envelope shape, so graders can add files freely.
 
 ## Key decisions
 
-- **APY from `apr_estimate.low`, in exact decimal.** Strategies carry an APR *range*, not an
-  APY. We take the conservative floor — a compliance-driven bank should not present a rate
-  the customer cannot reliably meet — and convert APR→APY with `APY = (1 + APR/n)^n - 1`,
-  compounding only when `auto_compound` is effectively on. All rate maths — the conversion,
-  the hard ≥3% threshold, and the APY sort — runs on `big.js` decimals, never IEEE-754
-  float; the float boundary is only the JSON response, where `apyValue` is a number. This
-  keeps a rate like POL's `2.9999999999999999` (which parses to the double `3.0`) correctly
-  below 3%, and is the precision posture a regulated bank's compliance rules call for.
-- **`big.js` for the rate maths, not `decimal.js`.** The APY formula raises to `n` =
-  compounding periods per year — a count of *discrete* payout events (a weekly strategy
-  credits ~52 times a year, not 52.14), so `n` is a whole number. `big.js` `pow` with an
-  integer exponent is *exact*: repeated multiplication, no rounding. `decimal.js` allows a
-  fractional exponent, but computes `pow` as a rounded `exp(y·ln x)` — so a fractional `n`
-  would trade an exact integer power for a rounded transcendental one, with no gain in
-  correctness — and it is the larger dependency. `decimal.js` would be warranted only for
-  continuous compounding or a period count beyond `pow`'s ±1e6 limit; neither applies here.
+- **APY from `apr_estimate.low`, in exact decimal.** Strategies carry an APR *range*, not
+  an APY. We take the conservative floor — a compliance-driven bank should not present a
+  rate a customer cannot reliably meet — and convert with `APY = (1 + APR/n)^n - 1`,
+  compounding only when `auto_compound` is on. All rate maths runs on `big.js` decimals,
+  never IEEE-754 float, so a float-rounding artefact never crosses the 3% threshold (POL's
+  `2.9999…`, which parses to the double `3.0`, stays correctly below it).
+- **`big.js`, not `decimal.js`.** The APY exponent is an integer period count, and
+  `big.js`'s integer `pow` is exact; `decimal.js` would add weight with no added
+  correctness here.
 - **`flex` strategies are excluded entirely.** Meridian's `flex` ("Meridian Rewards") is an
-  account-wide passive yield, not a per-strategy allocation a customer can pick — so it is
-  not a catalog product and never appears in `/earn-products`, for any tier. Some `flex`
-  records in the source data carry `can_allocate: true`, which contradicts Meridian's model;
-  the exclusion keys off the lock type, not that flag.
-- **Tier model by structural signal.** Among catalog strategies, `instant` is instant-access
-  — visible to every tier, Standard included. `bonded`/`hybrid`/`timed` carry a withdrawal
-  lock (unbonding period, exit queue, or fixed term) and are restricted to Premium/Private.
-  The classification reads the lock structure, not just the type label, so unknown future
-  lock types default to restricted.
-- **`can_allocate: false` strategies are dropped.** The `/private/` response is account-
-  scoped; if Aurora's account cannot allocate, customers cannot invest.
-- **Fail-closed errors.** Any malformed/unavailable data yields a structured error object.
+  account-wide passive yield, not a product a customer picks — so it is not a catalog item
+  and never appears in `/earn-products`, for any tier.
+- **Tier model by structural signal.** `instant` strategies are instant-access — visible
+  to every tier. `bonded`/`hybrid`/`timed` carry a withdrawal lock and are restricted to
+  Premium/Private. The classification reads the lock structure, not the type label, so an
+  unknown future lock type defaults to restricted.
+- **`can_allocate: false` strategies are dropped.** The `/private/` response is
+  account-scoped; if Aurora's account cannot allocate, customers cannot invest.
+- **Fail-closed errors.** Any malformed or unavailable data yields a structured error
+  object, never a partial result.
 
-Full reasoning: `solution-design-note.md`.
+Deeper reasoning lives in the code comments and `solution-design-note.md`.
 
 ## Dependencies
 
@@ -107,21 +98,15 @@ The service makes **no outbound network calls at runtime** — all data comes fr
 - **Per-customer geography.** Meridian filters strategies by Aurora's *account* region; finer
   per-customer geo-eligibility would need the customer's country as an input.
 - **`displayName` is synthesised** from asset + lock + yield-source words — the source data
-  has no product-name field. For `hybrid` (DeFi vault) strategies the lock word is
-  deliberately omitted, so the name reads `USDC DeFi Vault` rather than duplicating "vault".
+  has no product-name field. Real product names would come from a content source.
 - **`apyDisplay`** uses a fixed `%` format; true per-locale formatting is a future step.
-- **APY compounding is capped at daily.** The compounding-period count `n` is a whole number
-  (payouts are discrete events; `big.js` `pow` takes an integer exponent). `n` is capped at
-  365: compounding finer than daily shifts the APY by less than the displayed 2-decimal
-  precision, while `pow`'s cost climbs steeply with `n` — an hourly payout would otherwise
-  take ~25 s to compute. A frequency over ~2 years rounds to under one period a year and is
-  treated as non-compounding (APY = APR). Meridian's data uses weekly-to-monthly frequencies,
-  well inside both bounds.
-- **`PORT=0`** (asking the OS for a free port) is treated as unset and falls back to 3000.
-- **Data is read once and cached** for the process lifetime — no auth, rate limiting, or
-  observability either, all out of scope for a PoC. A concurrent burst of requests during
-  the very first load may read the `data/` directory more than once (harmless — the result
-  is identical); a production cache would use a TTL and de-duplicate in-flight loads.
+- **APY compounding is capped at daily** — the compounding-period count is capped at 365.
+  Compounding finer than daily shifts the APY by less than the displayed 2-decimal
+  precision, so the cap costs no visible accuracy. Meridian's data uses weekly-to-monthly
+  payout frequencies, well inside the cap.
+- **Data is read once and cached** for the process lifetime — with no auth, rate limiting,
+  or observability, all out of scope for a PoC. A production cache would add a TTL and
+  de-duplicate concurrent in-flight loads.
 
 ## Development
 
