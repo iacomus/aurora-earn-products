@@ -89,10 +89,20 @@ The service makes **no outbound network calls at runtime** — all data comes fr
 - **Per-customer geography.** Meridian filters strategies by Aurora's *account* region; finer
   per-customer geo-eligibility would need the customer's country as an input.
 - **`displayName` is synthesised** from asset + lock + yield-source words — the source data
-  has no product-name field.
+  has no product-name field. For `hybrid` (DeFi vault) strategies the lock word is
+  deliberately omitted, so the name reads `USDC DeFi Vault` rather than duplicating "vault".
 - **`apyDisplay`** uses a fixed `%` format; true per-locale formatting is a future step.
-- No auth, rate limiting, caching, or observability — out of scope for a PoC. Data is read
-  once and cached for the process lifetime.
+- **APY conversion assumes a realistic payout frequency.** A `payout_frequency` longer than
+  roughly two years would round the compounding-period count to zero; no such value occurs
+  in Meridian's data, so it is not specially guarded.
+- **One route only.** An unknown path returns Express's default `404` (plain text, not a
+  stack trace). A production service would add a JSON `404` and a catch-all error-handler
+  middleware as more routes are added.
+- **`PORT=0`** (asking the OS for a free port) is treated as unset and falls back to 3000.
+- **Data is read once and cached** for the process lifetime — no auth, rate limiting, or
+  observability either, all out of scope for a PoC. A concurrent burst of requests during
+  the very first load may read the `data/` directory more than once (harmless — the result
+  is identical); a production cache would use a TTL and de-duplicate in-flight loads.
 
 ## Development
 

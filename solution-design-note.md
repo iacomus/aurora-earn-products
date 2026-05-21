@@ -69,7 +69,8 @@ not just the lock-type label, so new Meridian lock types are handled safely.
 - **Real API client.** Implement `MeridianEarnClient` over HTTPS with API-key auth, timeouts,
   retries, and pagination handling.
 - **Caching & refresh.** Reward rates change; cache responses with a sensible TTL or a
-  scheduled refresh rather than reading once at startup.
+  scheduled refresh rather than reading once at startup, and de-duplicate concurrent loads
+  (the PoC's first-load cache can read the source more than once under a simultaneous burst).
 - **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
   Aurora's customers span jurisdictions with different rules, pass the customer's country to
   the endpoint and filter against Aurora's own per-jurisdiction permissions.
@@ -77,4 +78,6 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   per-strategy allocation — the app should present it differently from a normal product.
 - **Localised display.** `apyDisplay` currently uses a fixed `4.25%` format; format per the
   customer's locale.
+- **HTTP surface.** The PoC exposes a single route; an unknown path falls through to
+  Express's default `404`. Add a JSON `404` response and a catch-all error-handler middleware.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.
