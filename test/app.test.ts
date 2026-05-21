@@ -35,9 +35,9 @@ describe("structuredErrorHandler", () => {
   });
 
   it("masks an unexpected throwable as INTERNAL_ERROR without leaking its message", async () => {
-    const res = await request(
-      appThatThrows(new Error("stack trace leak")),
-    ).get("/boom");
+    const res = await request(appThatThrows(new Error("stack trace leak"))).get(
+      "/boom",
+    );
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(res.body)).not.toContain("stack trace leak");
