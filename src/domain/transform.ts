@@ -1,7 +1,6 @@
 // src/domain/transform.ts
 import { AppError } from "../errors";
-import type { RawStrategy, AssetMap } from "../meridian/schema";
-import { computeApy, meetsApyThreshold } from "./apy";
+import type { AssetMap, RawAsset, RawStrategy } from "../meridian/schema";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
 
 /** The customer-facing earn product — the service's output shape. */
@@ -37,15 +36,13 @@ export function displayName(strategy: RawStrategy, altname: string): string {
 }
 
 /**
- * Transforms one raw strategy into an EarnProduct, or null if it is filtered out
- * (a `flex` lock type, can_allocate:false, a non-enabled asset, or APY below 3% / absent).
- * Throws AppError(DATA_MALFORMED) if the strategy references an unknown asset code.
+ * Resolves the asset a strategy references. A dangling reference is malformed
+ * data, not an eligibility decision — so this throws rather than filtering.
  */
-export function toProduct(
+export function resolveAsset(
   strategy: RawStrategy,
   assets: AssetMap,
-): EarnProduct | null {
-  // 1. Resolve the asset — a dangling reference is malformed data.
+): RawAsset {
   const asset = assets[strategy.asset];
   if (!asset) {
     throw new AppError(
@@ -53,26 +50,21 @@ export function toProduct(
       `Strategy ${strategy.id} references unknown asset code "${strategy.asset}"`,
     );
   }
+  return asset;
+}
 
-  // 2. Lock-type filter — `flex` is Meridian Rewards: an account-wide passive
-  // yield, not a per-strategy allocation a customer picks. It is not a catalog
-  // product, so it never appears in /earn-products. (Some flex records carry
-  // `can_allocate: true`, which contradicts Meridian's model — the exclusion is
-  // by lock type, not that flag.)
-  if (strategy.lock_type.type === "flex") return null;
-
-  // 3. Availability filter — the account cannot allocate.
-  if (strategy.can_allocate === false) return null;
-
-  // 4. Asset-status filter — the asset is not operational platform-wide.
-  if (asset.status !== "enabled") return null;
-
-  // 5 & 6. Compute the display/sort APY, then apply the hard ≥3% filter —
-  // meetsApyThreshold compares in exact decimal for non-compounding strategies.
-  const apyExact = computeApy(strategy);
-  if (apyExact === null || !meetsApyThreshold(strategy)) return null;
-
-  // 7 & 8. Build the output object (apyValue rounded to 2 decimals for display).
+/**
+ * Builds the customer-facing EarnProduct for a strategy that has already passed
+ * asset resolution and every eligibility filter. Pure: no filtering, no I/O.
+ *
+ * `apyExact` is the unrounded APY (see computeApy), passed in so it is computed
+ * once and shared with the caller's sort rather than recomputed here.
+ */
+export function buildProduct(
+  strategy: RawStrategy,
+  asset: RawAsset,
+  apyExact: number,
+): EarnProduct {
   const apyValue = Math.round(apyExact * 100) / 100;
   return {
     strategyId: strategy.id,

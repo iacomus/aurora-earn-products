@@ -1,15 +1,17 @@
 // src/domain/earn-products.ts
 import type { MeridianEarnClient } from "../meridian/client";
 import { computeApy } from "./apy";
-import { toProduct, type EarnProduct } from "./transform";
+import { passesAllFilters } from "./filters";
+import { buildProduct, resolveAsset, type EarnProduct } from "./transform";
 import type { Tier } from "./tiers";
 
 /**
- * Loads strategies + assets via the client, transforms and filters them, then returns the
- * products visible to `tier`, sorted by APY descending (strategyId ascending breaks ties).
+ * Loads strategies + assets, runs each strategy through the eligibility filter
+ * pipeline, and returns the catalog products visible to `tier`, sorted by APY
+ * descending (strategyId ascending breaks ties).
  *
- * The sort key is the *unrounded* APY, so two strategies that round to the same displayed
- * `apyValue` are still ordered by their true rate.
+ * The sort key is the *unrounded* APY, so two products that round to the same
+ * displayed apyValue are still ordered by their true rate.
  */
 export async function getEarnProducts(
   client: MeridianEarnClient,
@@ -22,15 +24,17 @@ export async function getEarnProducts(
 
   const scored: { product: EarnProduct; apyExact: number }[] = [];
   for (const strategy of strategies) {
-    const product = toProduct(strategy, assets);
-    // toProduct only returns a product when computeApy yielded a value (>= 3%),
-    // so the cast is safe here.
-    if (product)
-      scored.push({ product, apyExact: computeApy(strategy) as number });
+    const asset = resolveAsset(strategy, assets);
+    if (!passesAllFilters({ strategy, asset, tier })) continue;
+
+    // The apy-threshold filter has passed, so computeApy is non-null here.
+    const apyExact = computeApy(strategy);
+    if (apyExact === null) continue;
+
+    scored.push({ product: buildProduct(strategy, asset, apyExact), apyExact });
   }
 
   return scored
-    .filter((s) => s.product.eligibleTiers.includes(tier))
     .sort(
       (a, b) =>
         b.apyExact - a.apyExact ||

@@ -1,14 +1,11 @@
 // test/transform.test.ts
 import { describe, it, expect } from "vitest";
-import { toProduct, displayName } from "../src/domain/transform";
-import type { RawStrategy, AssetMap } from "../src/meridian/schema";
-
-const assets: AssetMap = {
-  XETH: { altname: "ETH", status: "enabled" },
-  SOL: { altname: "SOL", status: "enabled" },
-  POL: { altname: "MATIC", status: "enabled" },
-  DEAD: { altname: "DEAD", status: "disabled" },
-};
+import {
+  buildProduct,
+  displayName,
+  resolveAsset,
+} from "../src/domain/transform";
+import type { AssetMap, RawAsset, RawStrategy } from "../src/meridian/schema";
 
 const strat = (
   over: Partial<RawStrategy> & Pick<RawStrategy, "id" | "asset">,
@@ -34,6 +31,9 @@ describe("displayName", () => {
         "ETH",
       ),
     ).toBe("ETH Bonded Staking");
+  });
+
+  it("omits the lock word for a lock type with no mapping (e.g. hybrid)", () => {
     expect(
       displayName(
         strat({
@@ -45,27 +45,44 @@ describe("displayName", () => {
         "USDC",
       ),
     ).toBe("USDC DeFi Vault");
+  });
+
+  it("falls back to 'Earn' when the yield source is absent", () => {
     expect(
       displayName(
-        strat({
-          id: "S",
-          asset: "POL",
-          lock_type: { type: "flex" },
-          yield_source: { type: "staking" },
-        }),
-        "MATIC",
+        strat({ id: "S", asset: "XETH", lock_type: { type: "instant" } }),
+        "ETH",
       ),
-    ).toBe("MATIC Flexible Staking");
+    ).toBe("ETH Flexible Earn");
   });
 });
 
-describe("toProduct", () => {
-  it("builds an EarnProduct for a qualifying strategy", () => {
-    const p = toProduct(
+describe("resolveAsset", () => {
+  const assets: AssetMap = { XETH: { altname: "ETH", status: "enabled" } };
+
+  it("returns the asset for a known code", () => {
+    expect(
+      resolveAsset(strat({ id: "S", asset: "XETH" }), assets).altname,
+    ).toBe("ETH");
+  });
+
+  it("throws DATA_MALFORMED for an unknown asset code", () => {
+    expect(() =>
+      resolveAsset(strat({ id: "S", asset: "NOPE" }), assets),
+    ).toThrowError(/unknown asset code/);
+  });
+});
+
+describe("buildProduct", () => {
+  const eth: RawAsset = { altname: "ETH", status: "enabled" };
+
+  it("builds the EarnProduct output shape", () => {
+    const product = buildProduct(
       strat({ id: "S1", asset: "XETH", yield_source: { type: "staking" } }),
-      assets,
+      eth,
+      8,
     );
-    expect(p).toEqual({
+    expect(product).toEqual({
       strategyId: "S1",
       asset: "ETH",
       displayName: "ETH Flexible Staking",
@@ -77,93 +94,31 @@ describe("toProduct", () => {
     });
   });
 
-  it("resolves the asset altname (POL → MATIC)", () => {
-    expect(toProduct(strat({ id: "S", asset: "POL" }), assets)?.asset).toBe(
-      "MATIC",
+  it("rounds apyValue to 2 decimals and formats apyDisplay", () => {
+    const product = buildProduct(strat({ id: "S", asset: "XETH" }), eth, 8.327);
+    expect(product.apyValue).toBe(8.33);
+    expect(product.apyDisplay).toBe("8.33%");
+  });
+
+  it("uses the asset altname (POL → MATIC)", () => {
+    const product = buildProduct(
+      strat({ id: "S", asset: "POL" }),
+      { altname: "MATIC", status: "enabled" },
+      5,
     );
-  });
-
-  it("throws DATA_MALFORMED for an unknown asset code", () => {
-    expect(() =>
-      toProduct(strat({ id: "S", asset: "NOPE" }), assets),
-    ).toThrowError(/unknown asset code/);
-  });
-
-  it("drops a strategy with can_allocate:false", () => {
-    expect(
-      toProduct(strat({ id: "S", asset: "XETH", can_allocate: false }), assets),
-    ).toBeNull();
-  });
-
-  it("drops a flex strategy — Meridian Rewards is not a catalog product", () => {
-    // High APY and can_allocate:true, so the lock type is the only reason to drop it.
-    expect(
-      toProduct(
-        strat({
-          id: "S",
-          asset: "XETH",
-          lock_type: { type: "flex" },
-          apr_estimate: { low: "8.0000" },
-          can_allocate: true,
-        }),
-        assets,
-      ),
-    ).toBeNull();
-  });
-
-  it("drops a strategy whose asset is not enabled", () => {
-    expect(toProduct(strat({ id: "S", asset: "DEAD" }), assets)).toBeNull();
-  });
-
-  it("drops a strategy with APY below 3%", () => {
-    expect(
-      toProduct(
-        strat({ id: "S", asset: "XETH", apr_estimate: { low: "2.5000" } }),
-        assets,
-      ),
-    ).toBeNull();
-  });
-
-  it("drops a strategy with no apr_estimate", () => {
-    const { apr_estimate, ...noApr } = strat({ id: "S", asset: "XETH" });
-    expect(toProduct(noApr as RawStrategy, assets)).toBeNull();
-  });
-
-  it("includes a strategy exactly on the 3% threshold", () => {
-    const p = toProduct(
-      strat({
-        id: "S",
-        asset: "XETH",
-        apr_estimate: { low: "3.0000" },
-      }),
-      assets,
-    );
-    expect(p?.apyValue).toBe(3);
-  });
-
-  it("excludes a strategy whose apr.low is below 3% as an exact decimal", () => {
-    // POL's "2.9999999999999999" parses to the double 3.0, but the exact
-    // decimal is < 3 — the strategy is dropped by the threshold filter.
-    const p = toProduct(
-      strat({
-        id: "S",
-        asset: "POL",
-        apr_estimate: { low: "2.9999999999999999" },
-      }),
-      assets,
-    );
-    expect(p).toBeNull();
+    expect(product.asset).toBe("MATIC");
   });
 
   it("sets eligibleTiers to Premium/Private for a bonded strategy", () => {
-    const p = toProduct(
+    const product = buildProduct(
       strat({
         id: "S",
         asset: "SOL",
         lock_type: { type: "bonded", unbonding_period: 100 },
       }),
-      assets,
+      { altname: "SOL", status: "enabled" },
+      5,
     );
-    expect(p?.eligibleTiers).toEqual(["Premium", "Private"]);
+    expect(product.eligibleTiers).toEqual(["Premium", "Private"]);
   });
 });
