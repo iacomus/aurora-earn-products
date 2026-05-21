@@ -38,6 +38,8 @@ Each is settled; the reasoning belongs in `README.md` and `solution-design-note.
 | Error handling | Fail-closed, structured error | On any malformed/unavailable data, return a structured error object naming the cause — never a stack trace, never silent partial degradation. |
 | Threshold boundary | `APY ≥ 3%` | Per the brief. Applied to the *unrounded* computed APY. |
 | `allocation_restriction_info` / `can_allocate` | Tolerated, not acted on | The data's `tier` restriction is Meridian's *account verification* tier, unrelated to Aurora's customer tiers. Not a filter or tier input — using it would conflate two unrelated systems. Documented in §13. |
+| Asset `status` ≠ `enabled` | Drop the strategy | A non-enabled asset (`disabled` / `workinprogress` / `depositonly` / …) is not fully operational platform-wide. Unlike volatile `can_allocate`, `status` is a stable asset property — surfacing an earn product for it is a real correctness/compliance issue. Deliberate data-quality safeguard (§13). |
+| Envelope `error` array non-empty | Structured error | A populated `error` array is an upstream API failure (e.g. `["EAPI:Bad request"]`). The brief says handle upstream errors — we fail-closed and surface the Meridian error string. |
 
 ### Naming trap (documented for the reader)
 
@@ -91,6 +93,11 @@ docker-compose.yml
 Both files use Meridian's envelope: `{ "error": [], "result": ... }`.
 - A **strategies** file: `result.items` is an array.
 - An **assets** file: `result` is a keyed object of asset metadata.
+- The `error` array carries upstream API errors as `"<severity><category>: <description>"`
+  strings (e.g. `["EAPI:Bad request"]`). A **non-empty `error` array** on a recognised data
+  file is an upstream failure → **structured error** (fail-closed).
+- `result.next_cursor` is a pagination cursor. We read static files with no runtime network,
+  so there is no next page to fetch — `next_cursor` is **ignored**.
 
 ### Globbing and shape detection
 
@@ -98,14 +105,18 @@ Graders add JSON files with **arbitrary names** during scoring, so files are cla
 **shape, not filename**:
 
 - Glob every `*.json` in `DATA_DIR`.
-- For each file: parse JSON, then inspect shape.
+- For each file: parse JSON, then inspect it.
+  - Invalid JSON → **structured error**.
+  - Meridian envelope with a **non-empty `error` array** → **structured error**.
   - `result.items` is an array → **strategies file**.
   - `result` is a non-array object whose values are objects carrying an `altname` string
     → **assets file**.
   - Valid JSON, recognised as neither → **ignored** (could be unrelated; not an error).
 - Collect strategy items from **all** strategies files; merge asset maps from **all**
-  assets files. This supports graders splitting data across multiple files. On a duplicate
-  asset key across files, last-write-wins (documented).
+  assets files. This supports graders splitting data across multiple files.
+  - Duplicate asset key across files → last-write-wins.
+  - Duplicate strategy `id` across files → dedupe by `id`, last-write-wins, so the output
+    never contains two identical `strategyId`s.
 
 ### Validation (zod)
 
@@ -115,9 +126,15 @@ Schemas are **lenient about unknown keys** (Meridian adds fields; graders add fi
 
 - A file recognised as a strategies/assets file but failing schema validation → **structured
   error** (fail-closed), naming the file and the validation problem.
+- Field types are **not uniform** — the schema types each explicitly: `apr_estimate.*`,
+  `user_min_allocation`, `user_cap`, fees are **strings**; `payout_frequency`, `*_period`,
+  `decimals` are **numbers**. `duration_months` is in **months**; every other period is in
+  **seconds**.
+- `lock_type` and `lock_type.type` are **required** — a strategy missing them → structured
+  error (distinct from an *unknown* `type` *value*, which §5.2 handles as `restricted`).
 - `apr_estimate` is **optional** on a strategy. Its absence is valid (see MINA) and handled
-  by the domain layer, not the schema. If `apr_estimate` is *present*, its `low`/`high` must
-  be numeric-parseable strings; otherwise → structured error.
+  by the domain layer, not the schema. If `apr_estimate` is *present*, its `low` must be a
+  numeric-parseable string; otherwise → structured error. `high` is optional and unused.
 
 ## 5. Domain layer
 
@@ -146,15 +163,19 @@ adding new values.
 
 ### 5.2 Tier model (`domain/tiers.ts`)
 
-Classify each strategy into an **access model**:
+Classify each strategy into an **access model**, keyed off **structural signals** in
+`lock_type`, not just the `type` label:
 
-- **instant-access** — no unbonding period, no fixed term. `lock_type.type` ∈ {`instant`,
-  `flex`}.
-- **restricted** — has an unbonding period or fixed term. `lock_type.type` ∈ {`bonded`,
-  `hybrid`, `timed`}, *or* any lock type carrying `unbonding_period > 0` or a
-  `duration_months` / fixed-term field.
-- **unknown lock type with no instant-access signal → restricted** (conservative default;
+- **Restricted** if `lock_type` carries any *withdrawal-side* lock signal:
+  `unbonding_period > 0`, `exit_queue_period > 0`, `delayed_withdrawals: true`, a
+  `duration_months` / fixed-term field, or `type` ∈ {`bonded`, `hybrid`, `timed`}.
+- Else if `type` ∈ {`instant`, `flex`} (no lock signal present) → **instant-access**.
+- Else — an **unknown `type`** outside that set → **restricted** (conservative default;
   robust to graders adding new lock types).
+
+`bonding_period` is **not** a restricted-access signal — it delays when rewards *start
+accruing*, not when funds can be *withdrawn* (ATOM has `bonding_period: 0` yet is restricted
+via its `unbonding_period`). Only withdrawal-side signals gate Standard eligibility.
 
 `eligibleTiers` is derived from the access model:
 
@@ -178,12 +199,15 @@ Pipeline per strategy:
    `altname` for the output `asset` field (`XETH`→`ETH`, `POL`→`MATIC`, `XADA`→`ADA`).
    A code **not** in the asset map → **structured error** (broken referential integrity is
    malformed data; fail-closed).
-2. Compute APY (§5.1). A strategy with **no `apr_estimate`** has no APY (see MINA).
-3. **APY filter (hard, never relaxed):** drop any strategy whose APY is `< 3%`, and drop any
+2. **Asset-status filter:** if the resolved asset's `status` is not `enabled`, **drop** the
+   strategy (a non-operational asset is not surfaceable — see §2). This is a *drop*, not an
+   error: the asset metadata is valid, the asset just is not available.
+3. Compute APY (§5.1). A strategy with **no `apr_estimate`** has no APY (see MINA).
+4. **APY filter (hard, never relaxed):** drop any strategy whose APY is `< 3%`, and drop any
    strategy with no APY. Applied to the *unrounded* computed APY.
-4. Derive `eligibleTiers` from the tier model (§5.2).
-5. Build the `EarnProduct` output object (§6).
-6. After all strategies are transformed: filter to those whose `eligibleTiers` includes the
+5. Derive `eligibleTiers` from the tier model (§5.2).
+6. Build the `EarnProduct` output object (§6).
+7. After all strategies are transformed: filter to those whose `eligibleTiers` includes the
    **requested tier**, then **sort by `apyValue` descending**, tie-broken by `strategyId`
    ascending for deterministic ("stable") output.
 
@@ -248,8 +272,9 @@ Success → a plain JSON array. Failure → a structured object, never a stack t
 |---|---|---|
 | Missing or invalid `tier` query param | 400 | `INVALID_TIER` |
 | `DATA_DIR` missing, or no JSON files found | 500 | `DATA_UNAVAILABLE` |
-| A recognised data file fails JSON parse / schema validation | 500 | `DATA_MALFORMED` |
+| A data file fails JSON parse / schema validation | 500 | `DATA_MALFORMED` |
 | A strategy references an asset code absent from the asset map | 500 | `DATA_MALFORMED` |
+| A data file's envelope has a non-empty `error` array (upstream failure) | 500 | `DATA_UPSTREAM_ERROR` |
 | Any unexpected error | 500 | `INTERNAL_ERROR` |
 
 `tier` matching is case-insensitive; output tier names are capitalised (`Standard`). A
@@ -294,12 +319,14 @@ TDD on the domain core — the logic that carries risk. Not exhaustive coverage;
 - **`apy.test.ts`** — formula correctness; compounding gate (`enabled` compounds,
   `disabled`/`optional:false` do not); no-`payout_frequency` → APY = APR; `n` derivation.
 - **`tiers.test.ts`** — all five lock types → correct access model and `eligibleTiers`;
-  unknown lock type → restricted.
+  `exit_queue_period` / `delayed_withdrawals` force `restricted`; `bonding_period` alone
+  does not; unknown lock type → restricted.
 - **`transform.test.ts`** — asset code → altname; APY filter boundaries (POL = 3.00% in,
   XXTZ = 2.50% out, AVAX/ALGO out, MINA dropped for missing `apr_estimate`); dangling asset
-  code → error; `displayName` synthesis.
+  code → error; non-`enabled` asset status → dropped; `displayName` synthesis.
 - **`loader.test.ts`** — shape detection; multi-file merge; malformed file → structured
-  error; non-matching file ignored.
+  error; non-empty `error` array → structured error; duplicate `id` / asset-key dedupe;
+  non-matching file ignored.
 - **`earn-products.test.ts`** — endpoint per tier; invalid tier → 400; sort order; missing
   data dir → 500.
 
@@ -368,6 +395,14 @@ Documented in `README.md` / `solution-design-note.md`:
 - **APY inputs are not all documented.** `auto_compound` enum values and `hybrid`/`timed`
   lock types are absent from Meridian's public docs; behaviour is inferred from the mock data,
   with conservative fallbacks for unknown values.
+- **Non-enabled assets are dropped.** A strategy whose asset `status` is not `enabled`
+  (`disabled` / `workinprogress` / `depositonly` / …) is excluded. This goes beyond the
+  brief's two stated filters as a deliberate data-quality safeguard — Aurora should not
+  surface an earn product for an asset that is not operational platform-wide.
+- **Some source fields are intentionally unused** — `display_decimals`, `decimals`,
+  `allocation_fee`, `deallocation_fee`, `user_cap`, `bonding_rewards` / `unbonding_rewards`.
+  Notably `display_decimals` is *not* used to format `minimumAmount` or `apyDisplay`: the
+  brief fixes `minimumAmount` as a verbatim string and `apyDisplay` as a plain `%` value.
 - **`displayName` is synthesised** — see §6. Real product/marketing names would come from a
   content source.
 - **Locale.** `apyDisplay` uses a fixed `"%"` format matching the brief's example. True
