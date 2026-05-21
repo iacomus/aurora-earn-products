@@ -428,12 +428,20 @@ Documented in `README.md` / `solution-design-note.md`:
   Meridian's docs state Earn *"generally requires Intermediate tier"* — unrelated to Aurora's
   Standard/Premium/Private *customer* tiers despite the shared word. The service never maps
   it onto the tier model; doing so would conflate two unrelated systems.
-- **Geographic availability is not filtered.** The brief lists *"geographic availability"*
-  among what `POST /private/Earn/Strategies` returns. The mock data has no explicit geo
-  field; any geographic restriction would surface inside `allocation_restriction_info`. The
-  service does not filter on it — there is no stated requirement, and correct geo-gating
-  needs the *customer's* country of residence, which the service does not receive. A
-  production version would take a customer region and filter accordingly.
+- **Geographic availability is enforced upstream by Meridian — the service does no
+  geo-filtering.** Meridian's docs state `POST /private/Earn/Strategies` *"returns only
+  strategies that are available to the user based on geographic region"*: geo-restricted
+  strategies are **absent from the response entirely**, not flagged within it. So
+  `strategies.json` is already a geographically-scoped view of what Aurora's account may
+  offer, and re-implementing a geo filter would duplicate — and risk contradicting —
+  Meridian's authoritative determination. Geographic availability is therefore *not* a
+  per-strategy field, and is *not* carried in `allocation_restriction_info` (that field
+  carries allocation-eligibility reasons such as `tier`, for strategies that *are*
+  returned). The one genuine production gap: Meridian filters for **Aurora's account's**
+  region, but Aurora's customers span multiple European jurisdictions, so per-customer
+  geo-eligibility is finer-grained. Handling it would need the customer's country as an
+  input to `/earn-products` plus Aurora's own per-jurisdiction product permissions — out of
+  scope for this PoC, and the right "next step toward production" for the design note.
 - **`flex` allocation model.** In Meridian's real product, `flex` ("Meridian Rewards") is an
   account-wide toggle with no manual allocation. Surfacing it as a selectable catalog item
   is a simplification; a production integration would treat `flex` differently in the UI.
