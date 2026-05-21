@@ -16,7 +16,14 @@ export function isCompounding(
   return false; // 'disabled', or any unknown type
 }
 
-/** Compounding periods per year, from a payout frequency in seconds. */
+/**
+ * Compounding periods per year, from a payout frequency in seconds.
+ *
+ * The result is a whole number: payouts are discrete events, and the APY
+ * formula raises the per-period rate to this power with `Big.pow`, which only
+ * accepts an integer exponent. A fractional "exact ratio" is therefore neither
+ * meaningful nor representable here.
+ */
 export function compoundingPeriodsPerYear(
   payoutFrequencySeconds: number,
 ): number {
@@ -25,8 +32,9 @@ export function compoundingPeriodsPerYear(
 
 /**
  * Compounding periods per year for the strategy, or null if it does not
- * effectively compound — auto_compound is off, or there is no usable
- * payout_frequency to derive a period count from.
+ * effectively compound — auto_compound is off, there is no usable
+ * payout_frequency, or the frequency is so long it rounds to under one period a
+ * year (treated as non-compounding: APY = APR, and avoids a division by zero).
  */
 function compoundingPeriods(strategy: RawStrategy): number | null {
   const frequency = strategy.lock_type.payout_frequency;
@@ -37,53 +45,38 @@ function compoundingPeriods(strategy: RawStrategy): number | null {
   ) {
     return null;
   }
-  return compoundingPeriodsPerYear(frequency);
+  const periods = compoundingPeriodsPerYear(frequency);
+  return periods >= 1 ? periods : null;
 }
 
 /**
- * The strategy's APY as a percentage number (e.g. 8.32), unrounded — the figure
- * shown to customers and used as the sort key. Returns null when the strategy
- * has no apr_estimate (the MINA case).
+ * The strategy's APY as a percentage, in exact decimal — the value used for the
+ * ≥3% threshold, the sort order, and (rounded) display. Returns null when the
+ * strategy has no apr_estimate (the MINA case).
  *
- * APY = (1 + APR/n)^n - 1 when the strategy compounds; otherwise APY = APR.
- * This is a floating-point value, fine for display and ordering. The hard ≥3%
- * eligibility gate is `meetsApyThreshold`, which compares in exact decimal.
+ * APY = (1 + APR/n)^n - 1 when the strategy compounds; otherwise APY = APR,
+ * taken straight from the apr_estimate string. All arithmetic runs on `big.js`
+ * decimals, never IEEE-754 float: a regulated bank's rate maths should not
+ * depend on binary floating-point rounding. The float boundary is the JSON
+ * response — see buildProduct.
  */
-export function computeApy(strategy: RawStrategy): number | null {
+export function computeApy(strategy: RawStrategy): Big | null {
   const apr = strategy.apr_estimate;
   if (!apr) return null;
 
-  // apr_estimate values are already percentages (e.g. "4.0000" → 4).
-  const aprPercent = Number(apr.low);
+  const aprPercent = new Big(apr.low);
   const n = compoundingPeriods(strategy);
   if (n === null) return aprPercent;
 
-  const aprFraction = aprPercent / 100;
-  const apyFraction = Math.pow(1 + aprFraction / n, n) - 1;
-  return apyFraction * 100;
+  const perPeriodRate = aprPercent.div(100).div(n);
+  return new Big(1).plus(perPeriodRate).pow(n).minus(1).times(100);
 }
 
 /**
- * Whether the strategy clears the hard ≥3% APY threshold.
- *
- * For a non-compounding strategy the APY *is* the APR, taken straight from the
- * apr_estimate string — so the comparison is done in exact decimal (big.js),
- * not IEEE-754 doubles. This matters at the boundary: POL's apr_estimate.low
- * "2.9999999999999999" is below 3 as an exact decimal even though it parses to
- * the double 3.0, so POL is correctly treated as sub-threshold.
- *
- * A compounding strategy's APY is (1 + r/n)^n - 1 — irreducibly floating-point —
- * so its check uses the computed double. There is no exact source decimal to
- * preserve there, and no string-parsing artifact at the boundary.
+ * Whether the strategy clears the hard ≥3% APY threshold. computeApy returns an
+ * exact-decimal value, so this is a single exact comparison — no floating-point
+ * boundary ambiguity, and no compounding/non-compounding special-casing.
  */
 export function meetsApyThreshold(strategy: RawStrategy): boolean {
-  const apr = strategy.apr_estimate;
-  if (!apr) return false;
-
-  if (compoundingPeriods(strategy) !== null) {
-    const apy = computeApy(strategy);
-    return apy !== null && apy >= APY_THRESHOLD_PERCENT;
-  }
-
-  return new Big(apr.low).gte(APY_THRESHOLD_PERCENT);
+  return computeApy(strategy)?.gte(APY_THRESHOLD_PERCENT) ?? false;
 }

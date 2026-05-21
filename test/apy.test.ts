@@ -48,7 +48,7 @@ describe("computeApy", () => {
   });
 
   it("compounds weekly when auto_compound is enabled", () => {
-    expect(computeApy(base)).toBeCloseTo(8.32, 2);
+    expect(computeApy(base)?.toNumber()).toBeCloseTo(8.32, 2);
   });
 
   it("returns APY = APR when auto_compound is disabled", () => {
@@ -57,7 +57,7 @@ describe("computeApy", () => {
       apr_estimate: { low: "4.0000" },
       auto_compound: { type: "disabled" },
     };
-    expect(computeApy(s)).toBeCloseTo(4.0, 5);
+    expect(computeApy(s)?.toNumber()).toBeCloseTo(4.0, 5);
   });
 
   it("returns APY = APR when payout_frequency is absent (flex)", () => {
@@ -66,7 +66,7 @@ describe("computeApy", () => {
       lock_type: { type: "flex" },
       apr_estimate: { low: "6.0000" },
     };
-    expect(computeApy(s)).toBeCloseTo(6.0, 5);
+    expect(computeApy(s)?.toNumber()).toBeCloseTo(6.0, 5);
   });
 
   it("returns APY = APR for optional auto_compound defaulting off", () => {
@@ -75,19 +75,31 @@ describe("computeApy", () => {
       apr_estimate: { low: "9.5000" },
       auto_compound: { type: "optional", default: false },
     };
-    expect(computeApy(s)).toBeCloseTo(9.5, 5);
+    expect(computeApy(s)?.toNumber()).toBeCloseTo(9.5, 5);
   });
 
-  it("returns the parsed APR percentage directly for a non-compounding strategy", () => {
-    // computeApy yields the display/sort value; for a non-compounding strategy
-    // that is the APR itself, with no /100-then-*100 round-trip. POL's
-    // "2.9999999999999999" parses to the IEEE-754 double 3.0.
+  it("treats a multi-year payout frequency as non-compounding (no division by zero)", () => {
+    // A ~3-year payout_frequency rounds to under one compounding period a year;
+    // computeApy falls back to APY = APR rather than dividing by n = 0.
+    const s: RawStrategy = {
+      ...base,
+      lock_type: { type: "instant", payout_frequency: 94608000 },
+      apr_estimate: { low: "5.0000" },
+    };
+    expect(computeApy(s)?.toNumber()).toBe(5);
+  });
+
+  it("preserves a non-compounding APR's exact decimal (no float collapse)", () => {
+    // "2.9999999999999999" is below 3 as an exact decimal but parses to the
+    // IEEE-754 double 3.0. computeApy keeps the true decimal, so the ≥3% gate
+    // and the APY sort both see it correctly.
     const s: RawStrategy = {
       ...base,
       lock_type: { type: "flex" },
       apr_estimate: { low: "2.9999999999999999" },
     };
-    expect(computeApy(s)).toBe(3);
+    expect(computeApy(s)?.toString()).toBe("2.9999999999999999");
+    expect(computeApy(s)?.eq(3)).toBe(false);
   });
 });
 

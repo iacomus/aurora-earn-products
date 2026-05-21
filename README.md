@@ -57,13 +57,22 @@ envelope shape, so graders can add files freely.
 
 ## Key decisions
 
-- **APY from `apr_estimate.low`.** Strategies carry an APR *range*, not an APY. We take the
-  conservative floor — a compliance-driven bank should not present a rate the customer
-  cannot reliably meet — and convert APR→APY with `APY = (1 + APR/n)^n - 1`, compounding
-  only when `auto_compound` is effectively on. The hard ≥3% filter compares the APR in
-  exact decimal (`big.js`): a rate like POL's `2.9999999999999999`, which parses to the
-  IEEE-754 double `3.0`, is correctly treated as below 3% rather than rounded onto the
-  boundary.
+- **APY from `apr_estimate.low`, in exact decimal.** Strategies carry an APR *range*, not an
+  APY. We take the conservative floor — a compliance-driven bank should not present a rate
+  the customer cannot reliably meet — and convert APR→APY with `APY = (1 + APR/n)^n - 1`,
+  compounding only when `auto_compound` is effectively on. All rate maths — the conversion,
+  the hard ≥3% threshold, and the APY sort — runs on `big.js` decimals, never IEEE-754
+  float; the float boundary is only the JSON response, where `apyValue` is a number. This
+  keeps a rate like POL's `2.9999999999999999` (which parses to the double `3.0`) correctly
+  below 3%, and is the precision posture a regulated bank's compliance rules call for.
+- **`big.js` for the rate maths, not `decimal.js`.** The APY formula raises to `n` =
+  compounding periods per year — a count of *discrete* payout events (a weekly strategy
+  credits ~52 times a year, not 52.14), so `n` is a whole number. `big.js` `pow` with an
+  integer exponent is *exact*: repeated multiplication, no rounding. `decimal.js` allows a
+  fractional exponent, but computes `pow` as a rounded `exp(y·ln x)` — so a fractional `n`
+  would trade an exact integer power for a rounded transcendental one, with no gain in
+  correctness — and it is the larger dependency. `decimal.js` would be warranted only for
+  continuous compounding or a period count beyond `pow`'s ±1e6 limit; neither applies here.
 - **`flex` strategies are excluded entirely.** Meridian's `flex` ("Meridian Rewards") is an
   account-wide passive yield, not a per-strategy allocation a customer can pick — so it is
   not a catalog product and never appears in `/earn-products`, for any tier. Some `flex`
@@ -86,7 +95,7 @@ Full reasoning: `solution-design-note.md`.
 |---|---|---|
 | `express` | HTTP server and routing | Industry-standard, MIT-licensed, no native dependencies, maintained by the OpenJS Foundation. Used only to receive one local request. |
 | `zod` | Runtime validation of the Meridian JSON, which drives the structured-error requirement | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
-| `big.js` | Exact-decimal comparison for the ≥3% APY threshold — avoids IEEE-754 boundary error | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
+| `big.js` | Exact-decimal arithmetic for all APY maths — APR→APY conversion, the ≥3% threshold, and sort order — keeping rate logic off IEEE-754 float | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
 
 Dev-only: `typescript`, `tsx`, `vitest`, `supertest` — not present in the runtime image.
 
@@ -100,9 +109,11 @@ The service makes **no outbound network calls at runtime** — all data comes fr
   has no product-name field. For `hybrid` (DeFi vault) strategies the lock word is
   deliberately omitted, so the name reads `USDC DeFi Vault` rather than duplicating "vault".
 - **`apyDisplay`** uses a fixed `%` format; true per-locale formatting is a future step.
-- **APY conversion assumes a realistic payout frequency.** A `payout_frequency` longer than
-  roughly two years would round the compounding-period count to zero; no such value occurs
-  in Meridian's data, so it is not specially guarded.
+- **APY conversion assumes a realistic payout frequency.** The compounding-period count is a
+  whole number — payouts are discrete events, and `big.js` `pow` needs an integer exponent.
+  A frequency over ~2 years rounds to under one period a year and is treated as
+  non-compounding (APY = APR); a pathologically short one (sub-minute) would exceed `pow`'s
+  range. Neither occurs in Meridian's data.
 - **One route only.** An unknown path returns Express's default `404` (plain text, not a
   stack trace). A production service would add a JSON `404` and a catch-all error-handler
   middleware as more routes are added.

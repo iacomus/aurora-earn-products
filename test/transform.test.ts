@@ -1,5 +1,6 @@
 // test/transform.test.ts
 import { describe, it, expect } from "vitest";
+import Big from "big.js";
 import {
   buildProduct,
   displayName,
@@ -80,7 +81,7 @@ describe("buildProduct", () => {
     const product = buildProduct(
       strat({ id: "S1", asset: "XETH", yield_source: { type: "staking" } }),
       eth,
-      8,
+      new Big("8"),
     );
     expect(product).toEqual({
       strategyId: "S1",
@@ -95,7 +96,11 @@ describe("buildProduct", () => {
   });
 
   it("rounds apyValue to 2 decimals and formats apyDisplay", () => {
-    const product = buildProduct(strat({ id: "S", asset: "XETH" }), eth, 8.327);
+    const product = buildProduct(
+      strat({ id: "S", asset: "XETH" }),
+      eth,
+      new Big("8.327"),
+    );
     expect(product.apyValue).toBe(8.33);
     expect(product.apyDisplay).toBe("8.33%");
   });
@@ -104,7 +109,7 @@ describe("buildProduct", () => {
     const product = buildProduct(
       strat({ id: "S", asset: "POL" }),
       { altname: "MATIC", status: "enabled" },
-      5,
+      new Big("5"),
     );
     expect(product.asset).toBe("MATIC");
   });
@@ -117,7 +122,7 @@ describe("buildProduct", () => {
         lock_type: { type: "bonded", unbonding_period: 100 },
       }),
       { altname: "SOL", status: "enabled" },
-      5,
+      new Big("5"),
     );
     expect(product.eligibleTiers).toEqual(["Premium", "Private"]);
   });

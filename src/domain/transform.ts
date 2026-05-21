@@ -1,4 +1,5 @@
 // src/domain/transform.ts
+import type Big from "big.js";
 import { AppError } from "../errors";
 import type { AssetMap, RawAsset, RawStrategy } from "../meridian/schema";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
@@ -57,22 +58,22 @@ export function resolveAsset(
  * Builds the customer-facing EarnProduct for a strategy that has already passed
  * asset resolution and every eligibility filter. Pure: no filtering, no I/O.
  *
- * `apyExact` is the unrounded APY (see computeApy), passed in so it is computed
- * once and shared with the caller's sort rather than recomputed here.
+ * `apy` is the exact-decimal APY percentage (see computeApy). It is converted
+ * to an IEEE-754 number only here, at the output boundary, because the response
+ * schema specifies apyValue as a JSON number.
  */
 export function buildProduct(
   strategy: RawStrategy,
   asset: RawAsset,
-  apyExact: number,
+  apy: Big,
 ): EarnProduct {
-  const apyValue = Math.round(apyExact * 100) / 100;
   return {
     strategyId: strategy.id,
     asset: asset.altname,
     displayName: displayName(strategy, asset.altname),
     lockType: strategy.lock_type.type,
-    apyDisplay: `${apyValue.toFixed(2)}%`,
-    apyValue,
+    apyDisplay: `${apy.toFixed(2)}%`,
+    apyValue: apy.round(2).toNumber(),
     eligibleTiers: eligibleTiers(accessModel(strategy.lock_type)),
     minimumAmount: strategy.user_min_allocation,
   };

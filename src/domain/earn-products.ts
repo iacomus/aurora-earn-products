@@ -1,4 +1,5 @@
 // src/domain/earn-products.ts
+import type Big from "big.js";
 import type { MeridianEarnClient } from "../meridian/client";
 import { computeApy } from "./apy";
 import { passesAllFilters } from "./filters";
@@ -10,8 +11,8 @@ import type { Tier } from "./tiers";
  * pipeline, and returns the catalog products visible to `tier`, sorted by APY
  * descending (strategyId ascending breaks ties).
  *
- * The sort key is the *unrounded* APY, so two products that round to the same
- * displayed apyValue are still ordered by their true rate.
+ * The sort compares the exact-decimal APY, so two products that round to the
+ * same displayed apyValue are still ordered by their true rate.
  */
 export async function getEarnProducts(
   client: MeridianEarnClient,
@@ -22,7 +23,7 @@ export async function getEarnProducts(
     client.listAssets(),
   ]);
 
-  const scored: { product: EarnProduct; apyExact: number }[] = [];
+  const scored: { product: EarnProduct; apyExact: Big }[] = [];
   for (const strategy of strategies) {
     const asset = resolveAsset(strategy, assets);
     if (!passesAllFilters({ strategy, asset, tier })) continue;
@@ -37,7 +38,7 @@ export async function getEarnProducts(
   return scored
     .sort(
       (a, b) =>
-        b.apyExact - a.apyExact ||
+        b.apyExact.cmp(a.apyExact) ||
         a.product.strategyId.localeCompare(b.product.strategyId),
     )
     .map((s) => s.product);
