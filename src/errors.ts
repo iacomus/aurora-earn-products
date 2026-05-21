@@ -1,6 +1,7 @@
 // src/errors.ts
 export type ErrorCode =
   | "INVALID_TIER"
+  | "INVALID_LOCALE"
   | "NOT_FOUND"
   | "DATA_UNAVAILABLE"
   | "DATA_MALFORMED"
@@ -9,6 +10,7 @@ export type ErrorCode =
 
 const HTTP_STATUS: Record<ErrorCode, number> = {
   INVALID_TIER: 400,
+  INVALID_LOCALE: 400,
   NOT_FOUND: 404,
   DATA_UNAVAILABLE: 500,
   DATA_MALFORMED: 500,

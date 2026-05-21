@@ -129,4 +129,11 @@ describe("getEarnProducts", () => {
     const result = await getEarnProducts(client, "Premium");
     expect(result.map((p) => p.strategyId)).toEqual(["S-OK"]);
   });
+
+  it("localises apyDisplay for the requested locale", async () => {
+    const client = fakeClient([instant("S", "XETH", "8.0000")]);
+    const [product] = await getEarnProducts(client, "Premium", "de-DE");
+    expect(product.apyDisplay).toContain(",");
+    expect(product.apyDisplay).not.toContain(".");
+  });
 });

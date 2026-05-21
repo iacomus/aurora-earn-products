@@ -126,4 +126,15 @@ describe("buildProduct", () => {
     );
     expect(product.eligibleTiers).toEqual(["Premium", "Private"]);
   });
+
+  it("localises apyDisplay for the given locale", () => {
+    const product = buildProduct(
+      strat({ id: "S", asset: "XETH" }),
+      eth,
+      new Big("4.25"),
+      "de-DE",
+    );
+    expect(product.apyDisplay).toContain("4,25");
+    expect(product.apyValue).toBe(4.25);
+  });
 });

@@ -9,8 +9,9 @@ Aurora's customers, so your team can take it to production.
 A small HTTP service with one endpoint, `GET /earn-products?tier={standard|premium|private}`.
 It returns a JSON array of earn products — each with a display name, APY, lock type,
 eligible customer tiers, and minimum amount — sorted by APY, highest first, ready for the
-mobile app. Invalid input or bad source data returns a structured error object, never a
-stack trace.
+mobile app. An optional `locale` query parameter (a BCP 47 tag, default `en-US`) localises
+the `apyDisplay` string. Invalid input or bad source data returns a structured error
+object, never a stack trace.
 
 ## Where the data comes from
 
@@ -75,6 +76,4 @@ Premium/Private.
 - **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
   Aurora's customers span jurisdictions, pass the customer's country to the endpoint and
   filter against Aurora's own per-jurisdiction permissions.
-- **Localised display.** `apyDisplay` currently uses a fixed `4.25%` format; format per
-  the customer's locale.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.

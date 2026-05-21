@@ -19,10 +19,14 @@ import type { Tier } from "./tiers";
  *
  * The sort compares the exact-decimal APY, so two products that round to the
  * same displayed apyValue are still ordered by their true rate.
+ *
+ * `locale` formats each product's apyDisplay (the validated `?locale` query
+ * param, defaulting to en-US).
  */
 export async function getEarnProducts(
   client: MeridianEarnClient,
   tier: Tier,
+  locale: string = "en-US",
 ): Promise<EarnProduct[]> {
   const [strategies, assets] = await Promise.all([
     client.listStrategies(),
@@ -45,7 +49,10 @@ export async function getEarnProducts(
     // Phase 2: the asset-aware eligibility filters.
     if (!passes(POST_ASSET_FILTERS, { strategy, asset, tier, apy })) continue;
 
-    scored.push({ product: buildProduct(strategy, asset, apy), apyExact: apy });
+    scored.push({
+      product: buildProduct(strategy, asset, apy, locale),
+      apyExact: apy,
+    });
   }
 
   return scored

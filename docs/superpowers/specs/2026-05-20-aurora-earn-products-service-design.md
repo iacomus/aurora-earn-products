@@ -4,8 +4,8 @@
 - **Status:** Implemented — this is the original design, reconciled with the shipped code.
 - **Context:** Solutions Engineering take-home assessment (`ASSESSMENT.md`)
 
-> **Amendments (2026-05-21).** Two decisions were revised during implementation; this
-> document has been updated to match the shipped service.
+> **Amendments (2026-05-21).** Two decisions were revised during implementation and one
+> feature was added afterward; this document has been updated to match the shipped service.
 >
 > - **`flex` strategies are excluded from the catalog entirely** — originally they were
 >   kept and treated as instant-access. `flex` is Meridian Rewards, an account-wide passive
@@ -13,6 +13,10 @@
 > - **APY arithmetic runs in exact decimal (`big.js`)** — originally no decimal library was
 >   used. As an exact decimal, POL's `apr_estimate.low` is below the 3% threshold, so POL
 >   is excluded. Affects §5.1, §11, §12.
+> - **`apyDisplay` is localised via an optional `?locale` query param** — added after the
+>   initial build to meet the brief's "localised APY display strings" requirement.
+>   `Intl.NumberFormat` formats the string for a BCP 47 `locale` (default `en-US`); a
+>   malformed locale → `400 INVALID_LOCALE`. Affects §3, §6, §7, §8, §13.
 >
 > `README.md`, `solution-design-note.md`, and `CLAUDE.md` describe the shipped behaviour.
 
@@ -91,6 +95,7 @@ src/
   meridian/mock-client.ts    FileMockMeridianClient — glob data/, classify captures, validate, merge
   domain/apy.ts            APR → APY conversion, exact-decimal (pure)
   domain/tiers.ts          lock_type → access model → eligibleTiers (pure)
+  domain/locale.ts         ?locale validation + localised apyDisplay formatting (pure)
   domain/filters.ts        two-phase eligibility filter pipeline (pure)
   domain/transform.ts      raw strategy + asset → EarnProduct (pure)
   domain/earn-products.ts  orchestrate: load → filter → resolve asset → sort
@@ -301,7 +306,7 @@ Field derivations:
 | `displayName` | **Synthesised** (see below) |
 | `lockType` | `strategy.lock_type.type` verbatim — `instant`/`bonded`/`hybrid`/`timed` (`flex` is excluded from the catalog, so never appears) |
 | `apyValue` | Computed APY (§5.1), as a percentage number rounded to 2 decimals |
-| `apyDisplay` | `apyValue` formatted with 2 decimals and a `%` suffix (e.g. `"4.00%"`) |
+| `apyDisplay` | the APY as a localised percent string via `Intl.NumberFormat` for the request's `locale` — `"4.00%"` (en-US), `"4,00 %"` (de-DE) |
 | `eligibleTiers` | From the tier model (§5.2) |
 | `minimumAmount` | `strategy.user_min_allocation` verbatim (kept as a string) |
 
@@ -333,6 +338,7 @@ never a stack trace:
 | Condition | HTTP | `code` |
 |---|---|---|
 | Missing or invalid `tier` query param | 400 | `INVALID_TIER` |
+| Malformed `locale` query param | 400 | `INVALID_LOCALE` |
 | Request path matches no route | 404 | `NOT_FOUND` |
 | `DATA_DIR` missing, or no JSON files found | 500 | `DATA_UNAVAILABLE` |
 | A data file fails JSON parse / schema validation | 500 | `DATA_MALFORMED` |
@@ -349,6 +355,7 @@ or failure, uses the structured shape.
 
 - Express. One route: `GET /earn-products`.
 - `tier` is required. Missing/invalid → `400 INVALID_TIER`.
+- `locale` is optional — a BCP 47 tag, default `en-US`. Malformed → `400 INVALID_LOCALE`.
 - A request matching no route falls through to a middleware that raises `404 NOT_FOUND`,
   so an unknown path returns the structured error shape too.
 - Service listens on `0.0.0.0:3000`.
@@ -519,8 +526,9 @@ Documented in `README.md` / `solution-design-note.md`:
   brief fixes `minimumAmount` as a verbatim string and `apyDisplay` as a plain `%` value.
 - **`displayName` is synthesised** — see §6. Real product/marketing names would come from a
   content source.
-- **Locale.** `apyDisplay` uses a fixed `"%"` format matching the brief's example. True
-  per-locale formatting (Aurora is a European bank) is a production enhancement.
+- **Locale.** `apyDisplay` is localised via the optional `?locale` query param
+  (`Intl.NumberFormat`, default `en-US`). `minimumAmount` is kept verbatim per the brief
+  and is not locale-formatted.
 - **No auth, rate limiting, or observability** — out of scope for a PoC. Data is read
   once and cached for the process lifetime; a production cache would add a TTL or a
   scheduled refresh.

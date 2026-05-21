@@ -14,7 +14,9 @@ scoring. Language is the implementer's choice: TypeScript **or** Rust.
 
 A small HTTP service that:
 - Reads earn-strategy and asset data from local JSON files in `data/`.
-- Exposes `GET /earn-products?tier={tier}` (`tier` ∈ `standard`, `premium`, `private`).
+- Exposes `GET /earn-products?tier={tier}` (`tier` ∈ `standard`, `premium`, `private`),
+  plus an optional `locale` query param (BCP 47 tag, default `en-US`) that localises
+  `apyDisplay`.
 - Returns a JSON array of strategies filtered/formatted for the fictional "Aurora Bank",
   sorted by APY descending.
 - Ships with a root `Dockerfile` + `docker-compose.yml` so `docker-compose up` alone starts

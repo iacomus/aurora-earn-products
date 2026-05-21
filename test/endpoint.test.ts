@@ -140,4 +140,30 @@ describe("GET /earn-products", () => {
     expect(res.status).toBe(404);
     expect(res.body.error.code).toBe("NOT_FOUND");
   });
+
+  it("localises apyDisplay when ?locale is given", async () => {
+    await seed();
+    const res = await request(createApp(new FileMockMeridianClient(dir))).get(
+      "/earn-products?tier=premium&locale=de-DE",
+    );
+    expect(res.status).toBe(200);
+    expect(res.body[0].apyDisplay).toContain(",");
+  });
+
+  it("defaults to en-US apyDisplay formatting when ?locale is absent", async () => {
+    await seed();
+    const res = await request(createApp(new FileMockMeridianClient(dir))).get(
+      "/earn-products?tier=premium",
+    );
+    expect(res.body[0].apyDisplay).toMatch(/^\d+\.\d{2}%$/);
+  });
+
+  it("400s with a structured error for a malformed locale", async () => {
+    await seed();
+    const res = await request(createApp(new FileMockMeridianClient(dir))).get(
+      "/earn-products?tier=premium&locale=de_DE",
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("INVALID_LOCALE");
+  });
 });

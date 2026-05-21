@@ -18,10 +18,12 @@ The service starts on `http://localhost:3000` — no env vars, credentials, or s
 ```bash
 curl 'http://localhost:3000/earn-products?tier=standard'
 curl 'http://localhost:3000/earn-products?tier=premium'
-curl 'http://localhost:3000/earn-products?tier=private'
+curl 'http://localhost:3000/earn-products?tier=private&locale=de-DE'
 ```
 
-`tier` is required and must be `standard`, `premium`, or `private`. Each item:
+`tier` is required (`standard`, `premium`, or `private`). `locale` is optional — a BCP 47
+tag (e.g. `de-DE`, `tr-TR`) that localises the `apyDisplay` string; it defaults to
+`en-US`. Each item:
 
 ```json
 {
@@ -76,6 +78,9 @@ envelope shape, so graders can add files freely.
   unknown future lock type defaults to restricted.
 - **`can_allocate: false` strategies are dropped.** The `/private/` response is
   account-scoped; if Aurora's account cannot allocate, customers cannot invest.
+- **Localised `apyDisplay` via `Intl`.** An optional `?locale` (BCP 47 tag) formats the
+  display string per the customer's locale — `Intl.NumberFormat`, a Node built-in, so no
+  dependency. `apyValue` stays a raw number; `locale` defaults to `en-US`.
 - **Fail-closed errors.** Any malformed or unavailable data yields a structured error
   object, never a partial result.
 
@@ -99,7 +104,6 @@ The service makes **no outbound network calls at runtime** — all data comes fr
   per-customer geo-eligibility would need the customer's country as an input.
 - **`displayName` is synthesised** from asset + lock + yield-source words — the source data
   has no product-name field. Real product names would come from a content source.
-- **`apyDisplay`** uses a fixed `%` format; true per-locale formatting is a future step.
 - **APY compounding is capped at daily** — the compounding-period count is capped at 365.
   Compounding finer than daily shifts the APY by less than the displayed 2-decimal
   precision, so the cap costs no visible accuracy. Meridian's data uses weekly-to-monthly

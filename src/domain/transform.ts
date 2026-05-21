@@ -2,6 +2,7 @@
 import type Big from "big.js";
 import { AppError } from "../errors";
 import type { AssetMap, RawAsset, RawStrategy } from "../meridian/schema";
+import { formatApyDisplay } from "./locale";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
 
 /** The customer-facing earn product — the service's output shape. */
@@ -60,19 +61,21 @@ export function resolveAsset(
  *
  * `apy` is the exact-decimal APY percentage (see computeApy). It is converted
  * to an IEEE-754 number only here, at the output boundary, because the response
- * schema specifies apyValue as a JSON number.
+ * schema specifies apyValue as a JSON number. `apyDisplay` is formatted for
+ * `locale` — the validated `?locale` query param, defaulting to en-US.
  */
 export function buildProduct(
   strategy: RawStrategy,
   asset: RawAsset,
   apy: Big,
+  locale: string = "en-US",
 ): EarnProduct {
   return {
     strategyId: strategy.id,
     asset: asset.altname,
     displayName: displayName(strategy, asset.altname),
     lockType: strategy.lock_type.type,
-    apyDisplay: `${apy.toFixed(2)}%`,
+    apyDisplay: formatApyDisplay(apy, locale),
     apyValue: apy.round(2).toNumber(),
     eligibleTiers: eligibleTiers(accessModel(strategy.lock_type)),
     minimumAmount: strategy.user_min_allocation,
