@@ -53,6 +53,8 @@ export class FileMockMeridianClient implements MeridianEarnClient {
 
     const strategiesById = new Map<string, RawStrategy>();
     const assets: AssetMap = {};
+    let sawStrategies = false;
+    let sawAssets = false;
 
     for (const file of jsonFiles) {
       const raw = await this.parseFile(file);
@@ -62,11 +64,30 @@ export class FileMockMeridianClient implements MeridianEarnClient {
       if (kind === "strategies") {
         const env = validate(strategiesEnvelopeSchema, raw, file);
         for (const s of env.result.items) strategiesById.set(s.id, s);
+        sawStrategies = true;
       } else if (kind === "assets") {
         const env = validate(assetsEnvelopeSchema, raw, file);
         Object.assign(assets, env.result);
+        sawAssets = true;
       }
-      // kind === 'ignore' → skip
+      // kind === 'ignore' → a file with no Meridian envelope shape; skip it.
+    }
+
+    // Fail closed on a missing core dataset: an empty 200 response built from
+    // absent strategies/assets data would mask a broken capture. (A malformed
+    // *envelope-shaped* file has already thrown DATA_MALFORMED above — classify
+    // never routes an envelope-shaped file to 'ignore'.)
+    if (!sawStrategies) {
+      throw new AppError(
+        "DATA_UNAVAILABLE",
+        `No strategies capture found in ${this.dataDir}`,
+      );
+    }
+    if (!sawAssets) {
+      throw new AppError(
+        "DATA_UNAVAILABLE",
+        `No assets capture found in ${this.dataDir}`,
+      );
     }
 
     this.cache = { strategies: [...strategiesById.values()], assets };
@@ -121,26 +142,35 @@ function validate<T>(
   }
 }
 
-/** Identifies which endpoint a capture came from, by envelope shape. */
-function classify(raw: unknown): Capture {
-  if (typeof raw !== "object" || raw === null) return "ignore";
-  const result = (raw as { result?: unknown }).result;
-  if (typeof result !== "object" || result === null) return "ignore";
-  if (Array.isArray((result as { items?: unknown }).items)) return "strategies";
-  if (!Array.isArray(result) && isAssetsShape(result)) return "assets";
-  return "ignore";
+/**
+ * The Meridian response envelope shape: `{ "error": [ ... ], "result": ... }`.
+ * Every captured Strategies/Assets response carries it; an unrelated JSON file
+ * dropped into `data/` does not.
+ */
+function isMeridianEnvelope(
+  raw: unknown,
+): raw is { error: unknown[]; result: unknown } {
+  if (typeof raw !== "object" || raw === null) return false;
+  const envelope = raw as { error?: unknown; result?: unknown };
+  return Array.isArray(envelope.error) && "result" in envelope;
 }
 
-/** Looks like an assets result: a non-empty keyed object with at least one asset-shaped value. */
-function isAssetsShape(result: object): boolean {
-  const values = Object.values(result);
-  return (
-    values.length > 0 &&
-    values.some(
-      (v) =>
-        typeof v === "object" &&
-        v !== null &&
-        typeof (v as { altname?: unknown }).altname === "string",
-    )
-  );
+/**
+ * Identifies which endpoint a capture came from, by envelope shape.
+ *
+ * A file without the Meridian envelope shape is unrelated and ignored. A file
+ * *with* it is always a capture — strategies when its `result` nests `items`,
+ * assets otherwise — and is schema-validated by the caller. Nothing
+ * envelope-shaped is routed to 'ignore', so a malformed capture raises
+ * DATA_MALFORMED instead of being silently skipped.
+ */
+function classify(raw: unknown): Capture {
+  if (!isMeridianEnvelope(raw)) return "ignore";
+  const result = raw.result;
+  const isStrategies =
+    typeof result === "object" &&
+    result !== null &&
+    !Array.isArray(result) &&
+    "items" in result;
+  return isStrategies ? "strategies" : "assets";
 }

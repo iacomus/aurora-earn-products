@@ -48,6 +48,10 @@ describe("FileMockMeridianClient", () => {
   it("merges strategies across multiple files", async () => {
     await write("a.json", strategiesEnvelope(strategy("S1")));
     await write("b.json", strategiesEnvelope(strategy("S2")));
+    await write(
+      "assets.json",
+      assetsEnvelope({ XETH: { altname: "ETH", status: "enabled" } }),
+    );
     const client = new FileMockMeridianClient(dir);
     expect((await client.listStrategies()).map((s) => s.id).sort()).toEqual([
       "S1",
@@ -63,6 +67,13 @@ describe("FileMockMeridianClient", () => {
     await write(
       "z.json",
       strategiesEnvelope({ ...strategy("S1"), asset: "SOL" }),
+    );
+    await write(
+      "assets.json",
+      assetsEnvelope({
+        XETH: { altname: "ETH", status: "enabled" },
+        SOL: { altname: "SOL", status: "enabled" },
+      }),
     );
     const client = new FileMockMeridianClient(dir);
     const all = await client.listStrategies();
@@ -117,6 +128,10 @@ describe("FileMockMeridianClient", () => {
 
   it("ignores JSON files that are neither strategies nor assets", async () => {
     await write("strategies.json", strategiesEnvelope(strategy("S1")));
+    await write(
+      "assets.json",
+      assetsEnvelope({ XETH: { altname: "ETH", status: "enabled" } }),
+    );
     await write("other.json", { something: "unrelated" });
     const client = new FileMockMeridianClient(dir);
     expect(await client.listStrategies()).toHaveLength(1);
@@ -133,6 +148,47 @@ describe("FileMockMeridianClient", () => {
     const client = new FileMockMeridianClient(dir);
     await expect(client.listAssets()).rejects.toMatchObject({
       code: "DATA_MALFORMED",
+    });
+  });
+
+  it("throws DATA_MALFORMED for an envelope-shaped strategies file that fails schema, instead of ignoring it", async () => {
+    // result.items is not an array — a malformed capture, not an unrelated file.
+    await write("strategies.json", { error: [], result: { items: "nope" } });
+    const client = new FileMockMeridianClient(dir);
+    await expect(client.listStrategies()).rejects.toMatchObject({
+      code: "DATA_MALFORMED",
+    });
+  });
+
+  it("throws DATA_MALFORMED for an envelope-shaped assets file with no valid entries, instead of ignoring it", async () => {
+    // No entry carries an `altname`; the old shape check skipped this silently.
+    await write("assets.json", {
+      error: [],
+      result: { XETH: { status: "enabled" } },
+    });
+    const client = new FileMockMeridianClient(dir);
+    await expect(client.listAssets()).rejects.toMatchObject({
+      code: "DATA_MALFORMED",
+    });
+  });
+
+  it("throws DATA_UNAVAILABLE when no strategies capture is present", async () => {
+    await write(
+      "assets.json",
+      assetsEnvelope({ XETH: { altname: "ETH", status: "enabled" } }),
+    );
+    await write("other.json", { something: "unrelated" });
+    const client = new FileMockMeridianClient(dir);
+    await expect(client.listStrategies()).rejects.toMatchObject({
+      code: "DATA_UNAVAILABLE",
+    });
+  });
+
+  it("throws DATA_UNAVAILABLE when no assets capture is present", async () => {
+    await write("strategies.json", strategiesEnvelope(strategy("S1")));
+    const client = new FileMockMeridianClient(dir);
+    await expect(client.listStrategies()).rejects.toMatchObject({
+      code: "DATA_UNAVAILABLE",
     });
   });
 
