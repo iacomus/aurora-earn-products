@@ -64,6 +64,15 @@ describe('getEarnProducts', () => {
     expect((await getEarnProducts(client, 'Premium')).map((p) => p.strategyId)).toEqual(['S-ALPHA', 'S-ZEBRA']);
   });
 
+  it('sorts by the unrounded APY when two products round to the same apyValue', async () => {
+    // Both round to apyValue 3.01; only the unrounded APY (3.014 > 3.012) separates them,
+    // so S-ZULU must come first despite its alphabetically later strategyId.
+    const client = fakeClient([instant('S-ZULU', 'XETH', '3.0140'), instant('S-ALFA', 'SOL', '3.0120')]);
+    const result = await getEarnProducts(client, 'Premium');
+    expect(result.map((p) => p.strategyId)).toEqual(['S-ZULU', 'S-ALFA']);
+    expect(result.map((p) => p.apyValue)).toEqual([3.01, 3.01]);
+  });
+
   it('excludes sub-3% strategies', async () => {
     const client = fakeClient([instant('S-LOW', 'XETH', '2.0000')]);
     expect(await getEarnProducts(client, 'Premium')).toEqual([]);
