@@ -1,3 +1,4 @@
+import type Big from "big.js";
 import type { RawAsset, RawStrategy } from "../meridian/schema";
 import { meetsApyThreshold } from "./apy";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
@@ -17,6 +18,8 @@ export interface StrategyContext {
 export interface FilterInput extends StrategyContext {
   /** The asset the strategy references, already resolved — see resolveAsset. */
   asset: RawAsset;
+  /** The strategy's APY, computed once up front — null when it has no apr_estimate. */
+  apy: Big | null;
 }
 
 /**
@@ -71,9 +74,10 @@ export const POST_ASSET_FILTERS: readonly StrategyFilter[] = [
   },
   {
     name: "apy-threshold",
-    // Hard ≥3% rule. meetsApyThreshold compares in exact decimal, and is false
-    // when the strategy has no APY.
-    keep: ({ strategy }) => meetsApyThreshold(strategy),
+    // Hard ≥3% rule, on the APY computed once up front. meetsApyThreshold
+    // compares in exact decimal and treats a null APY (no apr_estimate) as
+    // below threshold.
+    keep: ({ apy }) => meetsApyThreshold(apy),
   },
   {
     name: "tier-eligibility",

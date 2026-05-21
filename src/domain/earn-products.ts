@@ -36,18 +36,20 @@ export async function getEarnProducts(
     // strategy cannot fail the whole request.
     if (!passes(PRE_ASSET_FILTERS, { strategy, tier })) continue;
 
-    // The strategy is a genuine catalog candidate: resolve its asset. A
-    // dangling reference is now malformed data — resolveAsset throws.
+    // The strategy is a genuine catalog candidate. Resolve its asset (a
+    // dangling reference is malformed data — resolveAsset throws) and compute
+    // the APY, each exactly once: computeApy is the most expensive step, and
+    // both the apy-threshold filter and buildProduct consume the result.
     const asset = resolveAsset(strategy, assets);
+    const apy = computeApy(strategy);
 
     // Phase 2: the asset-aware eligibility filters.
-    if (!passes(POST_ASSET_FILTERS, { strategy, asset, tier })) continue;
+    if (!passes(POST_ASSET_FILTERS, { strategy, asset, tier, apy })) continue;
 
-    // The apy-threshold filter has passed, so computeApy is non-null here.
-    const apyExact = computeApy(strategy);
-    if (apyExact === null) continue;
+    // The apy-threshold filter dropped any null APY, so apy is a Big here.
+    if (apy === null) continue;
 
-    scored.push({ product: buildProduct(strategy, asset, apyExact), apyExact });
+    scored.push({ product: buildProduct(strategy, asset, apy), apyExact: apy });
   }
 
   return scored

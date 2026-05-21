@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import Big from "big.js";
 import {
   isCompounding,
   compoundingPeriodsPerYear,
@@ -101,40 +102,41 @@ describe("computeApy", () => {
     expect(computeApy(s)?.toString()).toBe("2.9999999999999999");
     expect(computeApy(s)?.eq(3)).toBe(false);
   });
+
+  it("caps compounding periods so a high-frequency payout stays fast and exact", () => {
+    // An hourly payout (n ≈ 8760) would make an uncapped Big.pow take ~25 s.
+    // Capped at 365, the call is instant and the APY is computed exactly as a
+    // daily-payout strategy — identical well within the 2-decimal display.
+    const at = (payout_frequency: number): RawStrategy => ({
+      ...base,
+      lock_type: { type: "instant", payout_frequency },
+      apr_estimate: { low: "8.0000" },
+    });
+    const start = Date.now();
+    const hourly = computeApy(at(3600));
+    expect(Date.now() - start).toBeLessThan(1000);
+    expect(hourly?.toString()).toBe(computeApy(at(86400))?.toString());
+  });
 });
 
 describe("meetsApyThreshold", () => {
-  const nonCompounding = (low: string): RawStrategy => ({
-    ...base,
-    lock_type: { type: "flex" },
-    apr_estimate: { low },
+  it("includes an APY at or above 3%", () => {
+    expect(meetsApyThreshold(new Big("3"))).toBe(true);
+    expect(meetsApyThreshold(new Big("8.32"))).toBe(true);
   });
 
-  it("includes a non-compounding strategy at or above 3%", () => {
-    expect(meetsApyThreshold(nonCompounding("3.0000"))).toBe(true);
-    expect(meetsApyThreshold(nonCompounding("8.0000"))).toBe(true);
+  it("excludes an APY below 3%", () => {
+    expect(meetsApyThreshold(new Big("2.5"))).toBe(false);
   });
 
-  it("excludes a non-compounding strategy below 3%", () => {
-    expect(meetsApyThreshold(nonCompounding("2.5000"))).toBe(false);
+  it("compares the exact decimal — '2.9999999999999999' is below 3 (the POL case)", () => {
+    // Both POL bounds parse to the IEEE-754 double 3.0; big.js compares the
+    // true decimal value, so the floor lands just below the threshold.
+    expect(meetsApyThreshold(new Big("2.9999999999999999"))).toBe(false);
+    expect(meetsApyThreshold(new Big("3.0000000000000001"))).toBe(true);
   });
 
-  it("excludes POL — apr.low '2.9999999999999999' is below 3 as an exact decimal", () => {
-    // Parses to the IEEE-754 double 3.0, but big.js compares the true decimal.
-    expect(meetsApyThreshold(nonCompounding("2.9999999999999999"))).toBe(false);
-  });
-
-  it("includes a value just above 3 that the double 3.0 would otherwise mask", () => {
-    expect(meetsApyThreshold(nonCompounding("3.0000000000000001"))).toBe(true);
-  });
-
-  it("excludes a strategy with no apr_estimate", () => {
-    const { apr_estimate, ...noApr } = base;
-    expect(meetsApyThreshold(noApr as RawStrategy)).toBe(false);
-  });
-
-  it("evaluates a compounding strategy on its computed APY", () => {
-    // base: 8% APR, weekly compounding → APY ≈ 8.32% ≥ 3%.
-    expect(meetsApyThreshold(base)).toBe(true);
+  it("treats a null APY (no apr_estimate) as below threshold", () => {
+    expect(meetsApyThreshold(null)).toBe(false);
   });
 });

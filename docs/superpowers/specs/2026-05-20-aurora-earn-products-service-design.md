@@ -184,7 +184,10 @@ APY = (1 + APR/n)^n − 1
   All arithmetic below runs on `big.js` decimals, never IEEE-754 float (§11).
 - `n` = compounding periods per year = `round(31_536_000 / payout_frequency)`, where
   `payout_frequency` is `lock_type.payout_frequency` in seconds and `31_536_000` = 365 days.
-  So weekly (`604800`) → 52, 5-day (`432000`) → 73, 30-day (`2592000`) → 12.
+  So weekly (`604800`) → 52, 5-day (`432000`) → 73, 30-day (`2592000`) → 12. `n` is
+  **capped at 365**: compounding finer than daily moves APY below the 2-decimal display
+  precision, and capping bounds the cost of the exact-decimal `pow` (which climbs steeply
+  with the exponent — an uncapped hourly payout would take tens of seconds).
 - **Compounding gate** — compounding applies only when `auto_compound` is effectively on:
   - `enabled` → compound
   - `disabled` → no compounding
@@ -378,8 +381,8 @@ services:
 TDD on the domain core — the logic that carries risk. Not exhaustive coverage; focused:
 
 - **`apy.test.ts`** — formula correctness; compounding gate (`enabled` compounds,
-  `disabled`/`optional:false` do not); no-`payout_frequency` → APY = APR; `n` derivation;
-  the exact-decimal POL boundary.
+  `disabled`/`optional:false` do not); no-`payout_frequency` → APY = APR; `n` derivation
+  and its 365 cap; the exact-decimal POL boundary.
 - **`tiers.test.ts`** — all five lock types → correct access model and `eligibleTiers`;
   `exit_queue_period` / `delayed_withdrawals` force `restricted`; `bonding_period` alone
   does not; unknown lock type → restricted.

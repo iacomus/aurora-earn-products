@@ -6,6 +6,7 @@ import {
   type FilterInput,
   type StrategyContext,
 } from "../src/domain/filters";
+import { computeApy } from "../src/domain/apy";
 import type { RawAsset, RawStrategy } from "../src/meridian/schema";
 
 const strategy = (over: Partial<RawStrategy> = {}): RawStrategy => ({
@@ -27,11 +28,15 @@ const context = (over: Partial<StrategyContext> = {}): StrategyContext => ({
   ...over,
 });
 
-const input = (over: Partial<FilterInput> = {}): FilterInput => ({
-  ...context(),
-  asset: enabledAsset,
-  ...over,
-});
+const input = (over: Partial<FilterInput> = {}): FilterInput => {
+  const strat = over.strategy ?? strategy();
+  return {
+    ...context({ strategy: strat }),
+    asset: enabledAsset,
+    apy: computeApy(strat),
+    ...over,
+  };
+};
 
 describe("PRE_ASSET_FILTERS — cheap, strategy-only exclusions", () => {
   it("exposes its named rules in application order", () => {

@@ -110,11 +110,13 @@ The service makes **no outbound network calls at runtime** — all data comes fr
   has no product-name field. For `hybrid` (DeFi vault) strategies the lock word is
   deliberately omitted, so the name reads `USDC DeFi Vault` rather than duplicating "vault".
 - **`apyDisplay`** uses a fixed `%` format; true per-locale formatting is a future step.
-- **APY conversion assumes a realistic payout frequency.** The compounding-period count is a
-  whole number — payouts are discrete events, and `big.js` `pow` needs an integer exponent.
-  A frequency over ~2 years rounds to under one period a year and is treated as
-  non-compounding (APY = APR); a pathologically short one (sub-minute) would exceed `pow`'s
-  range. Neither occurs in Meridian's data.
+- **APY compounding is capped at daily.** The compounding-period count `n` is a whole number
+  (payouts are discrete events; `big.js` `pow` takes an integer exponent). `n` is capped at
+  365: compounding finer than daily shifts the APY by less than the displayed 2-decimal
+  precision, while `pow`'s cost climbs steeply with `n` — an hourly payout would otherwise
+  take ~25 s to compute. A frequency over ~2 years rounds to under one period a year and is
+  treated as non-compounding (APY = APR). Meridian's data uses weekly-to-monthly frequencies,
+  well inside both bounds.
 - **Unknown paths return Express's default `404`.** The service exposes one route; an
   unknown path falls through to Express's built-in `404` (plain text, not a stack trace).
   A structured JSON `404` body is a small production follow-up. Errors that escape the

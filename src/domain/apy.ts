@@ -31,10 +31,24 @@ export function compoundingPeriodsPerYear(
 }
 
 /**
+ * The most compounding periods a year the APY formula will use. The
+ * (1 + APR/n)^n curve has all but reached its e^APR limit by n = 365 (daily
+ * compounding), so compounding any finer shifts the APY by far less than the
+ * two-decimal displayed precision. `Big.pow` cost, by contrast, climbs steeply
+ * with the exponent — an hourly payout (n ≈ 8760) already takes tens of
+ * seconds, and a sub-hourly one is effectively unbounded. Capping n keeps the
+ * computed APY identical at display precision while bounding the work.
+ */
+const MAX_COMPOUNDING_PERIODS = 365;
+
+/**
  * Compounding periods per year for the strategy, or null if it does not
  * effectively compound — auto_compound is off, there is no usable
  * payout_frequency, or the frequency is so long it rounds to under one period a
  * year (treated as non-compounding: APY = APR, and avoids a division by zero).
+ *
+ * The count is capped at MAX_COMPOUNDING_PERIODS to bound `Big.pow` cost; see
+ * that constant for why the cap does not affect the displayed APY.
  */
 function compoundingPeriods(strategy: RawStrategy): number | null {
   const frequency = strategy.lock_type.payout_frequency;
@@ -46,7 +60,8 @@ function compoundingPeriods(strategy: RawStrategy): number | null {
     return null;
   }
   const periods = compoundingPeriodsPerYear(frequency);
-  return periods >= 1 ? periods : null;
+  if (periods < 1) return null;
+  return Math.min(periods, MAX_COMPOUNDING_PERIODS);
 }
 
 /**
@@ -73,10 +88,11 @@ export function computeApy(strategy: RawStrategy): Big | null {
 }
 
 /**
- * Whether the strategy clears the hard ≥3% APY threshold. computeApy returns an
- * exact-decimal value, so this is a single exact comparison — no floating-point
- * boundary ambiguity, and no compounding/non-compounding special-casing.
+ * Whether an APY clears the hard ≥3% threshold. `apy` is the exact-decimal
+ * value from computeApy — null when the strategy has no apr_estimate, which
+ * counts as below threshold. The comparison is a single exact-decimal compare,
+ * with no floating-point boundary ambiguity.
  */
-export function meetsApyThreshold(strategy: RawStrategy): boolean {
-  return computeApy(strategy)?.gte(APY_THRESHOLD_PERCENT) ?? false;
+export function meetsApyThreshold(apy: Big | null): boolean {
+  return apy?.gte(APY_THRESHOLD_PERCENT) ?? false;
 }

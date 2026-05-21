@@ -41,8 +41,11 @@ service changes.**
    the calendar ratio `365 ÷ 7 ≈ 52.14`: the service derives `n` from the strategy's payout
    frequency and rounds to the nearest integer (`Math.round`). This matches Meridian's own
    definition — its docs describe `n` as the "number of funding periods per year based on
-   your weekly payouts", likewise an integer. We only compound when the strategy actually
-   auto-compounds; otherwise APY = APR. All of this runs in exact decimal — see "Known edge
+   your weekly payouts", likewise an integer. `n` is capped at 365 — compounding more often
+   than daily moves the APY by less than the displayed precision, and the exact-decimal
+   power would otherwise get slow for a very frequent payout. We only compound when the
+   strategy actually auto-compounds; otherwise APY = APR. All of this runs in exact decimal
+   — see "Known edge
    cases".
 3. **Apply the filters** (a strategy must pass all of them):
    - The lock type is **not `flex`** — `flex` is Meridian Rewards, an account-wide passive
