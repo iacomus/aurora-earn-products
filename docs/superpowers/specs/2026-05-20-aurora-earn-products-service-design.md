@@ -521,8 +521,9 @@ Documented in `README.md` / `solution-design-note.md`:
   content source.
 - **Locale.** `apyDisplay` uses a fixed `"%"` format matching the brief's example. True
   per-locale formatting (Aurora is a European bank) is a production enhancement.
-- **No auth, rate limiting, caching, or observability** — out of scope for a PoC; data is
-  read fresh from disk per request.
+- **No auth, rate limiting, or observability** — out of scope for a PoC. Data is read
+  once and cached for the process lifetime; a production cache would add a TTL or a
+  scheduled refresh.
 
 ## 14. Deliverables
 
