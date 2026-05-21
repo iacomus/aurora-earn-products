@@ -37,6 +37,7 @@ Each is settled; the reasoning belongs in `README.md` and `solution-design-note.
 | Compounding gate | Gate on `auto_compound` | Compound only when effectively on (`enabled`, or `optional` with `default: true`). Otherwise APY = APR — no compounding the customer will not actually receive. |
 | Error handling | Fail-closed, structured error | On any malformed/unavailable data, return a structured error object naming the cause — never a stack trace, never silent partial degradation. |
 | Threshold boundary | `APY ≥ 3%` | Per the brief. Applied to the *unrounded* computed APY. |
+| `allocation_restriction_info` / `can_allocate` | Tolerated, not acted on | The data's `tier` restriction is Meridian's *account verification* tier, unrelated to Aurora's customer tiers. Not a filter or tier input — using it would conflate two unrelated systems. Documented in §13. |
 
 ### Naming trap (documented for the reader)
 
@@ -164,6 +165,10 @@ Classify each strategy into an **access model**:
 
 Premium and Private see everything qualifying, so `eligibleTiers` is always one of these
 two values.
+
+> **Not an input:** `allocation_restriction_info` and `can_allocate` play no part in this
+> model. Their `tier` restriction is Meridian's account-*verification* tier, not an Aurora
+> customer tier — see §13.
 
 ### 5.3 Transform + filter + sort (`domain/transform.ts`, `domain/earn-products.ts`)
 
@@ -344,6 +349,17 @@ APY computed from `apr_estimate.low`, per §5.1. Filter: APY ≥ 3%.
 
 Documented in `README.md` / `solution-design-note.md`:
 
+- **Meridian verification tier ≠ Aurora customer tier.** The data's
+  `allocation_restriction_info: ["tier"]` and `can_allocate` describe whether *Aurora's own
+  Meridian API account* is verified to the required level — Meridian's docs state Earn products
+  *"generally require Intermediate tier"* — **not** Aurora's Standard/Premium/Private
+  customer tiers. The two systems share the word "tier" but are unrelated. The service
+  deliberately does **not** use these fields for filtering or tiering; doing so would be a
+  correctness bug. Production notes: (1) Aurora's institutional Meridian account must be
+  verified to the required tier before go-live; (2) `can_allocate` is volatile account
+  state — it flips to `true` once the account is verified — so a real integration should
+  check it at allocation time, or surface availability, rather than letting a customer
+  commit funds to a strategy that would reject them.
 - **`flex` allocation model.** In Meridian's real product, `flex` ("Meridian Rewards") is an
   account-wide toggle with no manual allocation. Surfacing it as a selectable catalog item
   is a simplification; a production integration would treat `flex` differently in the UI.
