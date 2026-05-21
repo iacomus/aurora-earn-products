@@ -71,6 +71,14 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   classified by their lock structure; unknown future types default to "locked".
 - A strategy referencing an **unknown asset code**, a file with **malformed JSON**, or a
   Meridian response carrying an **error** all produce a structured error, not a crash.
+- **The data loader fails closed.** The service reads every `.json` file in `data/` and
+  classifies each by its Meridian envelope shape. It requires both a strategies capture and
+  an assets capture — if either is absent it returns a structured `DATA_UNAVAILABLE`
+  error, never an empty `200`, so a missing dataset is not mistaken for "no products
+  available". An envelope-shaped file that fails schema validation raises `DATA_MALFORMED`
+  instead of being silently skipped; only files with no envelope shape are ignored as
+  unrelated. An *empty* but present capture (e.g. zero strategies) is still valid and
+  yields a legitimate empty result.
 
 ## Suggested next steps toward production
 
