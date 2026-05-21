@@ -1,6 +1,6 @@
 // test/app.test.ts
 import { describe, it, expect } from "vitest";
-import express from "express";
+import express, { type Request, type Response } from "express";
 import request from "supertest";
 import { structuredErrorHandler } from "../src/app";
 import { AppError } from "../src/errors";
@@ -41,5 +41,21 @@ describe("structuredErrorHandler", () => {
     expect(res.status).toBe(500);
     expect(res.body.error.code).toBe("INTERNAL_ERROR");
     expect(JSON.stringify(res.body)).not.toContain("stack trace leak");
+  });
+
+  it("delegates to the default handler once the response is already sent", () => {
+    // Writing a second status/body after headers are flushed would throw;
+    // the handler must hand the error back to Express instead.
+    let forwarded: unknown;
+    const sentResponse = { headersSent: true } as Response;
+    structuredErrorHandler(
+      new AppError("DATA_MALFORMED", "too late"),
+      {} as Request,
+      sentResponse,
+      (err) => {
+        forwarded = err;
+      },
+    );
+    expect(forwarded).toBeInstanceOf(AppError);
   });
 });

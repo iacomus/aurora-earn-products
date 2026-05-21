@@ -31,23 +31,19 @@ export async function getEarnProducts(
 
   const scored: { product: EarnProduct; apyExact: Big }[] = [];
   for (const strategy of strategies) {
-    // Phase 1: cheap, strategy-only exclusions. A strategy dropped here never
-    // reaches resolveAsset, so a dangling asset reference on a non-catalog
-    // strategy cannot fail the whole request.
+    // Phase 1: the cheap, strategy-only exclusions.
     if (!passes(PRE_ASSET_FILTERS, { strategy, tier })) continue;
 
-    // The strategy is a genuine catalog candidate. Resolve its asset (a
-    // dangling reference is malformed data — resolveAsset throws) and compute
-    // the APY, each exactly once: computeApy is the most expensive step, and
-    // both the apy-threshold filter and buildProduct consume the result.
+    // A genuine catalog candidate: resolve the asset, then compute the APY
+    // once — it is the costly step, and the apy-threshold filter and
+    // buildProduct both consume the result.
     const asset = resolveAsset(strategy, assets);
     const apy = computeApy(strategy);
+    // No apr_estimate (e.g. MINA) → no APY → not a catalog product.
+    if (apy === null) continue;
 
     // Phase 2: the asset-aware eligibility filters.
     if (!passes(POST_ASSET_FILTERS, { strategy, asset, tier, apy })) continue;
-
-    // The apy-threshold filter dropped any null APY, so apy is a Big here.
-    if (apy === null) continue;
 
     scored.push({ product: buildProduct(strategy, asset, apy), apyExact: apy });
   }

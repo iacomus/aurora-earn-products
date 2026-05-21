@@ -105,8 +105,9 @@ describe("computeApy", () => {
 
   it("caps compounding periods so a high-frequency payout stays fast and exact", () => {
     // An hourly payout (n ≈ 8760) would make an uncapped Big.pow take ~25 s.
-    // Capped at 365, the call is instant and the APY is computed exactly as a
-    // daily-payout strategy — identical well within the 2-decimal display.
+    // Capped at 365 the call stays well under a second, and the APY is
+    // computed exactly as a daily-payout strategy — identical at 2-decimal
+    // display precision.
     const at = (payout_frequency: number): RawStrategy => ({
       ...base,
       lock_type: { type: "instant", payout_frequency },
