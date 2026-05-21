@@ -2,35 +2,46 @@ import type { RawAsset, RawStrategy } from "../meridian/schema";
 import { meetsApyThreshold } from "./apy";
 import { accessModel, eligibleTiers, type Tier } from "./tiers";
 
-/** Everything an eligibility filter may need to judge a single strategy. */
-export interface FilterInput {
+/**
+ * What the strategy-only filters need to judge a strategy: the strategy record
+ * and the requested tier. It deliberately carries no asset — these filters run
+ * before the strategy's asset is resolved.
+ */
+export interface StrategyContext {
   strategy: RawStrategy;
-  /** The asset the strategy references, already resolved — see resolveAsset. */
-  asset: RawAsset;
   /** The customer tier the request is being evaluated for. */
   tier: Tier;
 }
 
-/**
- * A named eligibility rule. `keep` returns true to keep the strategy in the
- * catalog, false to drop it.
- */
-export interface StrategyFilter {
-  name: string;
-  keep: (input: FilterInput) => boolean;
+/** A StrategyContext plus the resolved asset — what the asset-aware filters need. */
+export interface FilterInput extends StrategyContext {
+  /** The asset the strategy references, already resolved — see resolveAsset. */
+  asset: RawAsset;
 }
 
 /**
- * The eligibility filters, in application order — the single source of truth
- * for catalog membership. A strategy becomes a product for the requested tier
- * only if it passes every one. Add, remove, or reorder a rule by editing this
- * list; each rule is independent and individually testable.
- *
- * Asset resolution is intentionally not a filter: a strategy referencing an
- * unknown asset code is malformed data (DATA_MALFORMED), not a merely
- * ineligible strategy. It runs before this pipeline — see resolveAsset.
+ * A named eligibility rule. `keep` returns true to keep the strategy in the
+ * catalog, false to drop it. The type parameter records whether the rule needs
+ * the resolved asset (`FilterInput`) or only the strategy (`StrategyContext`),
+ * so the two phases below cannot be wired up the wrong way round.
  */
-export const STRATEGY_FILTERS: readonly StrategyFilter[] = [
+export interface StrategyFilter<I extends StrategyContext = FilterInput> {
+  name: string;
+  keep: (input: I) => boolean;
+}
+
+/**
+ * Phase 1 — the cheap exclusions, in application order. Each rule judges a
+ * strategy from the strategy record alone, so the whole phase runs *before*
+ * the strategy's asset is resolved.
+ *
+ * That ordering is the point. A strategy dropped here never triggers a
+ * resolveAsset call, so a dangling asset reference on a strategy that is not a
+ * catalog candidate in the first place — a `flex` record, an unallocatable one
+ * — cannot fail the request. Asset resolution, which treats a dangling
+ * reference as malformed data, is reserved for genuine candidates (phase 2).
+ */
+export const PRE_ASSET_FILTERS: readonly StrategyFilter<StrategyContext>[] = [
   {
     name: "lock-type",
     // `flex` is Meridian Rewards — an account-wide passive yield, not a
@@ -45,6 +56,14 @@ export const STRATEGY_FILTERS: readonly StrategyFilter[] = [
     // means Aurora's account cannot invest, so its customers cannot either.
     keep: ({ strategy }) => strategy.can_allocate !== false,
   },
+];
+
+/**
+ * Phase 2 — the asset-aware eligibility rules, in application order, applied
+ * once the strategy's asset has been resolved. A strategy reaching this phase
+ * has cleared the cheap exclusions and is a genuine catalog candidate.
+ */
+export const POST_ASSET_FILTERS: readonly StrategyFilter[] = [
   {
     name: "asset-status",
     // The underlying asset is not operational platform-wide on Meridian.
@@ -52,8 +71,8 @@ export const STRATEGY_FILTERS: readonly StrategyFilter[] = [
   },
   {
     name: "apy-threshold",
-    // Hard ≥3% rule. meetsApyThreshold compares in exact decimal on the
-    // non-compounding boundary, and is false when the strategy has no APY.
+    // Hard ≥3% rule. meetsApyThreshold compares in exact decimal, and is false
+    // when the strategy has no APY.
     keep: ({ strategy }) => meetsApyThreshold(strategy),
   },
   {
@@ -64,7 +83,10 @@ export const STRATEGY_FILTERS: readonly StrategyFilter[] = [
   },
 ];
 
-/** True when the strategy passes every eligibility filter for the input. */
-export function passesAllFilters(input: FilterInput): boolean {
-  return STRATEGY_FILTERS.every((filter) => filter.keep(input));
+/** True when `input` passes every filter in `filters`. */
+export function passes<I extends StrategyContext>(
+  filters: readonly StrategyFilter<I>[],
+  input: I,
+): boolean {
+  return filters.every((filter) => filter.keep(input));
 }

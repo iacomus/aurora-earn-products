@@ -38,6 +38,16 @@ describe("strategySchema", () => {
     const bad = { ...validStrategy, apr_estimate: { low: "abc" } };
     expect(strategySchema.safeParse(bad).success).toBe(false);
   });
+
+  it("accepts an unknown lock_type.type — open enum, handled conservatively by the domain layer", () => {
+    const odd = { ...validStrategy, lock_type: { type: "newfangled-lock" } };
+    expect(strategySchema.safeParse(odd).success).toBe(true);
+  });
+
+  it("rejects a non-string lock_type.type", () => {
+    const bad = { ...validStrategy, lock_type: { type: 7 } };
+    expect(strategySchema.safeParse(bad).success).toBe(false);
+  });
 });
 
 describe("assetSchema", () => {
@@ -48,6 +58,12 @@ describe("assetSchema", () => {
   });
   it("rejects an asset missing altname", () => {
     expect(assetSchema.safeParse({ status: "enabled" }).success).toBe(false);
+  });
+  it("accepts an unfamiliar asset status — open enum, not rejected", () => {
+    expect(
+      assetSchema.safeParse({ altname: "ETH", status: "workinprogress" })
+        .success,
+    ).toBe(true);
   });
 });
 

@@ -1,8 +1,20 @@
 # Aurora Bank Earn Products Service — Design
 
-- **Date:** 2026-05-20
-- **Status:** Approved design — ready for implementation planning
+- **Date:** 2026-05-20 (amended 2026-05-21 — see *Amendments* below)
+- **Status:** Implemented — this is the original design, reconciled with the shipped code.
 - **Context:** Solutions Engineering take-home assessment (`ASSESSMENT.md`)
+
+> **Amendments (2026-05-21).** Two decisions were revised during implementation; this
+> document has been updated to match the shipped service.
+>
+> - **`flex` strategies are excluded from the catalog entirely** — originally they were
+>   kept and treated as instant-access. `flex` is Meridian Rewards, an account-wide passive
+>   yield rather than a pickable product. Affects §2, §5.2, §5.3, §6, §12, §13.
+> - **APY arithmetic runs in exact decimal (`big.js`)** — originally no decimal library was
+>   used. As an exact decimal, POL's `apr_estimate.low` is below the 3% threshold, so POL
+>   is excluded. Affects §5.1, §11, §12.
+>
+> `README.md`, `solution-design-note.md`, and `CLAUDE.md` describe the shipped behaviour.
 
 ## 1. Problem
 
@@ -29,9 +41,8 @@ Each is settled; the reasoning belongs in `README.md` and `solution-design-note.
 |---|---|---|
 | Language | TypeScript | Fastest path to a clean, complete submission in the 2–4h budget. |
 | Which `apr_estimate` value is "the APY" | `low` (conservative floor) | Aurora's compliance team will not present sub-threshold yields. Using the floor means we never display a rate the customer cannot reliably meet. Drives both the filter and the displayed value. |
-| `flex` / `hybrid` / `timed` → tier model | Structural rule, not type label | The brief's tier rules only name `instant` and `bonded`. We classify by **structural signal**: a strategy is *instant-access* if it has no unbonding period and no fixed term. |
-| Does `flex` count as instant-access? | Yes | Per Meridian docs, `flex` ("Meridian Rewards") is earning on spot balances — the *most* liquid type. `instant` + `flex` → Standard-eligible. `bonded` + `hybrid` + `timed` → Premium/Private only. |
-| Keep `flex` in the catalog? | Yes | `flex` is account-wide with no manual allocation in Meridian's real product, but the mock data deliberately plants four edge cases on `flex` strategies (POL, XXTZ, ALGO, MINA). Dropping `flex` would skip them. The allocation nuance becomes a documented integration caveat. |
+| `flex` strategies | **Excluded from the catalog entirely** | `flex` is Meridian Rewards — an account-wide passive yield earned on spot balances, not a per-strategy allocation a customer can pick. It is not a catalog product, so `flex` strategies are dropped for **every** tier (the `lock-type` filter, §5.3). Some `flex` records carry `can_allocate: true`, contradicting Meridian's model; the exclusion keys off the lock type, not that flag. The edge cases the mock data plants on `flex` strategies (POL, XXTZ, ALGO, MINA) are still exercised by the loader and APY logic — they are simply not surfaced as products. See §13. |
+| Tier model — `instant` vs locked | Structural rule, not type label | The brief's tier rules name `instant` and `bonded`. Among catalog strategies we classify by **structural signal**: a strategy is *instant-access* only if it carries no withdrawal-side lock (no unbonding period, exit queue, delayed withdrawals, or fixed term). `instant` → all tiers; `bonded` / `hybrid` / `timed` carry a lock → Premium/Private only. |
 | APR vs APY | Convert APR → APY | The data carries APR (`apr_estimate`); the output and brief require APY. |
 | APY formula | `APY = (1 + APR/n)^n − 1` | Meridian's documented formula. `n` = compounding periods/year. |
 | Compounding gate | Gate on `auto_compound` | Compound only when effectively on (`enabled`, or `optional` with `default: true`). Otherwise APY = APR — no compounding the customer will not actually receive. |
@@ -71,23 +82,24 @@ The domain layer performs no I/O — it is pure functions over data the client r
 ```
 src/
   server.ts                bootstrap — listen on 0.0.0.0:3000
-  app.ts                   Express app + route wiring
+  app.ts                   Express app + route wiring + backstop error handler
   config.ts                DATA_DIR (default <cwd>/data), PORT (default 3000)
   errors.ts                AppError types + structured error shape
   routes/earn-products.ts  validate ?tier, call service, map errors → HTTP status
   meridian/client.ts         MeridianEarnClient interface + Meridian envelope / raw types
   meridian/schema.ts         zod schemas: Meridian envelope, strategy item, asset entry
   meridian/mock-client.ts    FileMockMeridianClient — glob data/, classify captures, validate, merge
-  domain/apy.ts            APR → APY conversion (pure)
+  domain/apy.ts            APR → APY conversion, exact-decimal (pure)
   domain/tiers.ts          lock_type → access model → eligibleTiers (pure)
-  domain/transform.ts      raw strategy + asset map → EarnProduct | excluded (pure)
-  domain/earn-products.ts  orchestrate: client → transform → filter by tier → sort
+  domain/filters.ts        two-phase eligibility filter pipeline (pure)
+  domain/transform.ts      raw strategy + asset → EarnProduct (pure)
+  domain/earn-products.ts  orchestrate: load → filter → resolve asset → sort
 test/
-  apy.test.ts              conversion + compounding-gate cases
-  tiers.test.ts            all five lock types → eligibleTiers
-  transform.test.ts        asset resolution, APY filter boundaries, displayName
-  mock-client.test.ts      capture classification, multi-file merge, malformed-capture errors
-  earn-products.test.ts    end-to-end endpoint test per tier
+  apy / tiers / schema / filters / transform .test.ts   domain unit tests
+  earn-products-service.test.ts                         orchestration per tier
+  mock-client.test.ts                                   capture classification + merge
+  errors.test.ts, app.test.ts                           error model + backstop handler
+  endpoint.test.ts                                      end-to-end GET /earn-products
 Dockerfile
 docker-compose.yml
 ```
@@ -168,7 +180,8 @@ Schemas are **lenient about unknown keys** (Meridian adds fields; graders add fi
 APY = (1 + APR/n)^n − 1
 ```
 
-- `APR` = `apr_estimate.low` parsed with `Number`, as a fraction (e.g. `"4.0000"` → `0.04`).
+- `APR` = `apr_estimate.low`, parsed as an exact decimal with `big.js` (e.g. `"4.0000"`).
+  All arithmetic below runs on `big.js` decimals, never IEEE-754 float (§11).
 - `n` = compounding periods per year = `round(31_536_000 / payout_frequency)`, where
   `payout_frequency` is `lock_type.payout_frequency` in seconds and `31_536_000` = 365 days.
   So weekly (`604800`) → 52, 5-day (`432000`) → 73, 30-day (`2592000`) → 12.
@@ -193,9 +206,12 @@ Classify each strategy into an **access model**, keyed off **structural signals*
 - **Restricted** if `lock_type` carries any *withdrawal-side* lock signal:
   `unbonding_period > 0`, `exit_queue_period > 0`, `delayed_withdrawals: true`, a
   `duration_months` / fixed-term field, or `type` ∈ {`bonded`, `hybrid`, `timed`}.
-- Else if `type` ∈ {`instant`, `flex`} (no lock signal present) → **instant-access**.
+- Else if `type` is `instant` (no lock signal present) → **instant-access**.
 - Else — an **unknown `type`** outside that set → **restricted** (conservative default;
   robust to graders adding new lock types).
+
+`flex` strategies never reach this classification: they are excluded from the catalog
+upstream by the `lock-type` filter (§5.3), before tiering.
 
 `bonding_period` is **not** a restricted-access signal — it delays when rewards *start
 accruing*, not when funds can be *withdrawn* (ATOM has `bonding_period: 0` yet is restricted
@@ -218,27 +234,39 @@ two values.
 
 ### 5.3 Transform + filter + sort (`domain/transform.ts`, `domain/earn-products.ts`)
 
-Pipeline per strategy:
+Pipeline per strategy, in two phases around asset resolution:
 
-1. Resolve `strategy.asset` (Meridian internal code) against the merged asset map → use the
-   `altname` for the output `asset` field (`XETH`→`ETH`, `POL`→`MATIC`, `XADA`→`ADA`).
-   A code **not** in the asset map → **structured error** (broken referential integrity is
-   malformed data; fail-closed). Resolution runs for every strategy, so a dangling reference
-   is caught even on a row a later filter would drop.
+**Phase 1 — cheap, strategy-only exclusions** (no asset needed):
+
+1. **Lock-type exclusion:** drop `flex` strategies — Meridian Rewards is an account-wide
+   passive yield, not a catalog product (§2, §13). A *drop*, not an error.
 2. **Availability filter:** if `can_allocate` is `false`, **drop** the strategy — the
    authenticated `/private/` response states Aurora's account cannot allocate, so it is not
-   a real catalog item (see §2). A *drop*, not an error.
+   a real catalog item (§2). A *drop*, not an error.
+
+**Resolve the asset** (only for a strategy that survived phase 1): look up `strategy.asset`
+(Meridian's internal code) in the merged asset map and use the `altname` for the output
+`asset` field (`XETH`→`ETH`, `POL`→`MATIC`, `XADA`→`ADA`). A code **not** in the asset map
+→ a **structured error** (broken referential integrity is malformed data; fail-closed).
+Running resolution only for genuine catalog candidates means a dangling reference on a
+strategy phase 1 already dropped never fails the request, while one on a real candidate
+correctly does.
+
+**Phase 2 — asset-aware eligibility filters:**
+
 3. **Asset-status filter:** if the resolved asset's `status` is not `enabled`, **drop** the
-   strategy (a non-operational asset is not surfaceable — see §2). Also a *drop*: the asset
-   metadata is valid, the asset just is not available.
-4. Compute APY (§5.1). A strategy with **no `apr_estimate`** has no APY (see MINA).
-5. **APY filter (hard, never relaxed):** drop any strategy whose APY is `< 3%`, and drop any
-   strategy with no APY. Applied to the *unrounded* computed APY.
-6. Derive `eligibleTiers` from the tier model (§5.2).
-7. Build the `EarnProduct` output object (§6).
-8. After all strategies are transformed: filter to those whose `eligibleTiers` includes the
-   **requested tier**, then **sort by `apyValue` descending**, tie-broken by `strategyId`
-   ascending for deterministic ("stable") output.
+   strategy (a non-operational asset is not surfaceable — §2). A *drop*: the asset metadata
+   is valid, the asset just is not available.
+4. **APY filter (hard, never relaxed):** compute APY (§5.1); drop any strategy whose APY is
+   `< 3%`, and any strategy with **no `apr_estimate`** (no APY — see MINA). Applied to the
+   *unrounded* computed APY.
+5. **Tier-eligibility filter:** drop the strategy if the **requested tier** is not in its
+   `eligibleTiers` (§5.2).
+
+**Then:** build the `EarnProduct` output object (§6) for each surviving strategy and
+**sort by APY descending**, tie-broken by `strategyId` ascending for deterministic output.
+The sort compares the *exact-decimal* APY, so two products that round to the same
+`apyValue` are still ordered by their true rate.
 
 ## 6. Output shape
 
@@ -268,7 +296,7 @@ Field derivations:
 | `strategyId` | `strategy.id` verbatim |
 | `asset` | `altname` of the asset, from the asset map |
 | `displayName` | **Synthesised** (see below) |
-| `lockType` | `strategy.lock_type.type` verbatim (`instant`/`bonded`/`flex`/`hybrid`/`timed`) |
+| `lockType` | `strategy.lock_type.type` verbatim — `instant`/`bonded`/`hybrid`/`timed` (`flex` is excluded from the catalog, so never appears) |
 | `apyValue` | Computed APY (§5.1), as a percentage number rounded to 2 decimals |
 | `apyDisplay` | `apyValue` formatted with 2 decimals and a `%` suffix (e.g. `"4.00%"`) |
 | `eligibleTiers` | From the tier model (§5.2) |
@@ -278,7 +306,7 @@ Field derivations:
 `"Ethereum Flexible Staking"` cannot be reproduced (no full asset names, no product names).
 We build it from `{altname} {lock-type word} {yield-source word}`:
 
-- lock-type word: `instant`/`flex` → `Flexible`, `bonded` → `Bonded`, `timed` → `Fixed-Term`,
+- lock-type word: `instant` → `Flexible`, `bonded` → `Bonded`, `timed` → `Fixed-Term`,
   `hybrid` → (omitted — yield-source word carries it)
 - yield-source word: `staking` → `Staking`, `defi` → `DeFi Vault`, `opt_in_rewards` →
   `Rewards`
@@ -316,8 +344,10 @@ top-level Express error handler guarantees no raw exception ever reaches the cli
 - Express. One route: `GET /earn-products`.
 - `tier` is required. Missing/invalid → `400 INVALID_TIER`.
 - Service listens on `0.0.0.0:3000`.
-- A catch-all error handler maps `AppError`s to their status + structured body, and any
-  other throwable to `500 INTERNAL_ERROR`.
+- A catch-all error handler — registered last in `app.ts` — maps `AppError`s to their
+  status + structured body, and any other throwable to `500 INTERNAL_ERROR`. The route
+  handler already maps its own failures, so this middleware is the backstop that
+  guarantees no raw exception reaches the client, for this route or any added later.
 
 ## 9. Docker
 
@@ -348,19 +378,28 @@ services:
 TDD on the domain core — the logic that carries risk. Not exhaustive coverage; focused:
 
 - **`apy.test.ts`** — formula correctness; compounding gate (`enabled` compounds,
-  `disabled`/`optional:false` do not); no-`payout_frequency` → APY = APR; `n` derivation.
+  `disabled`/`optional:false` do not); no-`payout_frequency` → APY = APR; `n` derivation;
+  the exact-decimal POL boundary.
 - **`tiers.test.ts`** — all five lock types → correct access model and `eligibleTiers`;
   `exit_queue_period` / `delayed_withdrawals` force `restricted`; `bonding_period` alone
   does not; unknown lock type → restricted.
-- **`transform.test.ts`** — asset code → altname; APY filter boundaries (POL = 3.00% in,
-  XXTZ = 2.50% out, AVAX/ALGO out, MINA dropped for missing `apr_estimate`); dangling asset
-  code → error; `can_allocate: false` → dropped; non-`enabled` asset status → dropped;
-  `displayName` synthesis.
+- **`schema.test.ts`** — envelope / strategy / asset validation; the open `lock_type.type`
+  and `status` enums accept unknown values; non-string or missing required fields rejected.
+- **`filters.test.ts`** — the two filter phases, their rules in application order, and each
+  rule run in isolation.
+- **`transform.test.ts`** — asset code → altname (`POL` → `MATIC`); dangling asset code →
+  error; `displayName` synthesis; `buildProduct` output shape.
+- **`earn-products-service.test.ts`** — orchestration per tier; APY-descending sort and the
+  exact-decimal tie-break; sub-3% exclusion; a dangling asset fails the request for a
+  genuine candidate but not for a cheaply-excluded strategy.
 - **`mock-client.test.ts`** — capture classification by shape; multi-file merge; malformed
   capture → structured error; non-empty `error` array → structured error; duplicate `id` /
   asset-key dedupe; non-matching file ignored.
-- **`earn-products.test.ts`** — endpoint per tier; invalid tier → 400; sort order; missing
-  data dir → 500.
+- **`errors.test.ts`** — `AppError` status mapping; `toStructuredError` masks unknown errors.
+- **`app.test.ts`** — the backstop error-handler middleware renders `AppError`s and masks
+  unexpected throwables.
+- **`endpoint.test.ts`** — end-to-end `GET /earn-products` per tier; invalid/missing tier →
+  400; missing data directory → 500.
 
 Test runner: `vitest`.
 
@@ -371,45 +410,53 @@ Each gets a safety note in `README.md`.
 | Dependency | Use | Safety note |
 |---|---|---|
 | `express` | HTTP server / routing | Ubiquitous, MIT, no native deps, mature. |
-| `zod` | Runtime schema validation → drives the structured-error requirement | Ubiquitous, MIT, no native deps, no runtime network. |
-| `typescript`, `tsx`, `vitest` (dev) | Build + test | Dev-only; not in the runtime image. |
+| `zod` | Runtime schema validation → drives the structured-error requirement | MIT, zero deps, no native code, no network. |
+| `big.js` | Exact-decimal APY arithmetic — APR→APY conversion, the ≥3% threshold, sort order | MIT, zero deps, no native code, no network. |
+| `typescript`, `tsx`, `vitest`, `supertest` (dev) | Build + test | Dev-only; not in the runtime image. |
 
-No decimal library: APR strings are parsed as IEEE-754 doubles. This is deliberate — the
-brief notes POL's `2.9999…`/`3.0000…` strings *both parse to `3.0`*, and the threshold is
-`≥ 3`, so POL lands exactly on the boundary and is **included**. A true decimal type would
-change that outcome.
+`big.js` for the rate maths: the APR→APY conversion, the hard ≥3% threshold, and the APY
+sort all run on exact decimals, never IEEE-754 float — the precision posture a regulated
+bank's compliance rules call for. As an exact decimal, POL's `apr_estimate.low` of
+`2.9999999999999999` — which *parses* to the double `3.0` — is below the threshold, so POL
+is **excluded** (an earlier design parsed APRs as floats, which would have included it).
+`big.js` over `decimal.js`: the APY formula raises the per-period rate to an integer period
+count, and `big.js` `pow` with an integer exponent is exact (repeated multiplication);
+`decimal.js`'s rounded `exp(y·ln x)` would add no correctness and more weight.
 
 ## 12. Worked example
 
-APY computed from `apr_estimate.low`, per §5.1. Pipeline drops, in order: `can_allocate:
-false`, asset `status` ≠ `enabled` (none in the provided data), APY `< 3%`, no APY.
+APY computed from `apr_estimate.low`, per §5.1. The pipeline drops strategies in two phases
+(§5.3): phase 1 — the `flex` lock type, then `can_allocate: false`; then, after asset
+resolution, phase 2 — asset `status` ≠ `enabled` (none in the provided data), APY `< 3%`,
+and the requested tier.
 
-| Asset | Lock | APR low | `auto_compound` | APY | `can_allocate` | Result |
-|---|---|---|---|---|---|---|
-| DOT | instant | 8.0 | enabled (n=52) | 8.32% | true | ✓ Standard, Premium, Private |
-| USDC | hybrid | 7.5 | disabled | 7.50% | true | ✓ Premium, Private |
-| ETH | bonded | 4.0 | disabled | 4.00% | true | ✓ Premium, Private |
-| ADA | instant | 3.0 | enabled (n=73) | 3.04% | true | ✓ Standard, Premium, Private |
-| POL | flex | 3.0 | enabled (no freq) | 3.00% | true | ✓ Standard, Premium, Private |
-| FIL | timed | 10.0 | disabled | 10.00% | false | ✗ dropped — `can_allocate: false` |
-| ATOM | bonded | 9.5 | optional:false | 9.50% | false | ✗ dropped — `can_allocate: false` |
-| SOL | bonded | 5.0 | enabled (n=52) | 5.12% | false | ✗ dropped — `can_allocate: false` |
-| KSM | instant | 4.25 | enabled (n=52) | 4.34% | false | ✗ dropped — `can_allocate: false` |
-| FLR | flex | 6.0 | enabled (no freq) | 6.00% | false | ✗ dropped — `can_allocate: false` |
-| XXTZ | flex | 2.5 | enabled (no freq) | 2.50% | true | ✗ dropped — APY < 3% |
-| AVAX | instant | 0.5 | enabled | 0.50% | true | ✗ dropped — APY < 3% |
-| ALGO | flex | 0.0 | enabled | 0.00% | true | ✗ dropped — APY < 3% |
-| MINA | flex | — | enabled | — | true | ✗ dropped — no `apr_estimate` |
+| Asset | Lock | APR low | APY | Result |
+|---|---|---|---|---|
+| DOT | instant | 8.0 | 8.32% | ✓ Standard, Premium, Private |
+| USDC | hybrid | 7.5 | 7.50% | ✓ Premium, Private |
+| ETH | bonded | 4.0 | 4.00% | ✓ Premium, Private |
+| ADA | instant | 3.0 | 3.04% | ✓ Standard, Premium, Private |
+| SOL | bonded | 5.0 | 5.12% | ✗ dropped — `can_allocate: false` |
+| ATOM | bonded | 9.5 | 9.50% | ✗ dropped — `can_allocate: false` |
+| KSM | instant | 4.25 | 4.34% | ✗ dropped — `can_allocate: false` |
+| FIL | timed | 10.0 | 10.00% | ✗ dropped — `can_allocate: false` |
+| AVAX | instant | 0.5 | 0.50% | ✗ dropped — APY < 3% |
+| XXTZ | flex | 2.5 | — | ✗ dropped — `flex` (Meridian Rewards, not a catalog product) |
+| POL | flex | 2.999… | — | ✗ dropped — `flex` |
+| ALGO | flex | 0.0 | — | ✗ dropped — `flex` |
+| MINA | flex | — | — | ✗ dropped — `flex` |
+| FLR | flex | 6.0 | — | ✗ dropped — `flex` |
 
-Five strategies qualify. Output sorted by APY descending:
+Four strategies qualify. Output sorted by APY descending:
 
 - `GET /earn-products?tier=premium` (or `private`) → DOT 8.32%, USDC 7.50%, ETH 4.00%,
-  ADA 3.04%, POL 3.00%.
-- `GET /earn-products?tier=standard` → instant-access only: DOT 8.32%, ADA 3.04%, POL 3.00%.
+  ADA 3.04%.
+- `GET /earn-products?tier=standard` → instant-access only: DOT 8.32%, ADA 3.04%.
 
-The `can_allocate` filter removes five strategies (FIL, ATOM, SOL, KSM, FLR) that would
-otherwise qualify — half the catalog. It is the design's highest-impact judgment call; §13
-records the reasoning.
+The `flex` exclusion removes five strategies (XXTZ, POL, ALGO, MINA, FLR); the
+`can_allocate: false` filter removes four more (SOL, ATOM, KSM, FIL). Together they take
+nine of the fourteen strategies out of the catalog before APY is even considered — the
+design's two highest-impact judgment calls; §13 records the reasoning.
 
 ## 13. Known limitations / out of scope
 
@@ -421,8 +468,9 @@ Documented in `README.md` / `solution-design-note.md`:
   Aurora's account cannot allocate, its customers cannot invest, so the strategy is not a
   real catalog item. The brief's required output shape has no availability flag, so the
   choice is binary — include or drop. A future revision could instead surface availability
-  state. This filter removes five of the ten APY-qualifying strategies in the sample data,
-  so it is the design's highest-impact decision.
+  state. In the sample data this filter drops four otherwise-qualifying strategies (SOL,
+  ATOM, KSM, FIL); with the `flex` exclusion it is one of the design's two highest-impact
+  decisions (see the worked example, §12).
 - **`allocation_restriction_info` is not an Aurora-tier signal.** It carries the *reason*
   `can_allocate` is false. Its `tier` value is Meridian's account-*verification* tier —
   Meridian's docs state Earn *"generally requires Intermediate tier"* — unrelated to Aurora's
@@ -442,9 +490,12 @@ Documented in `README.md` / `solution-design-note.md`:
   geo-eligibility is finer-grained. Handling it would need the customer's country as an
   input to `/earn-products` plus Aurora's own per-jurisdiction product permissions — out of
   scope for this PoC, and the right "next step toward production" for the design note.
-- **`flex` allocation model.** In Meridian's real product, `flex` ("Meridian Rewards") is an
-  account-wide toggle with no manual allocation. Surfacing it as a selectable catalog item
-  is a simplification; a production integration would treat `flex` differently in the UI.
+- **`flex` (Meridian Rewards) is excluded from the catalog.** In Meridian's real product `flex`
+  is an account-wide passive yield with no manual allocation — not a product a customer
+  picks — so `flex` strategies never appear in `/earn-products`, for any tier. Aurora may
+  still want to show these yields, but inline with a wallet balance rather than as a
+  catalog item: a separate feature with its own endpoint and UX. (Some `flex` records carry
+  `can_allocate: true`, contradicting Meridian's model; the exclusion keys off the lock type.)
 - **`apr_estimate` is an estimate range.** We take the conservative `low`. The `high` bound
   and the spread are discarded; a production API might expose the range.
 - **APY inputs are not all documented.** `auto_compound` enum values and `hybrid`/`timed`

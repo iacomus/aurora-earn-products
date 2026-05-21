@@ -99,10 +99,34 @@ describe("getEarnProducts", () => {
     expect(await getEarnProducts(client, "Premium")).toEqual([]);
   });
 
-  it("propagates DATA_MALFORMED when a strategy references an unknown asset", async () => {
+  it("propagates DATA_MALFORMED when a qualifying strategy references an unknown asset", async () => {
+    // An instant strategy clears the cheap exclusions, so it is a genuine
+    // catalog candidate — a dangling asset reference is malformed data.
     const client = fakeClient([instant("S", "GHOST", "8.0000")]);
     await expect(getEarnProducts(client, "Premium")).rejects.toMatchObject({
       code: "DATA_MALFORMED",
     });
+  });
+
+  it("does not fail the request for a dangling asset on a cheaply-excluded strategy", async () => {
+    // A flex strategy is dropped by the lock-type filter before asset
+    // resolution runs, so its unknown asset code must not become a
+    // DATA_MALFORMED error — a bad row that is not a catalog candidate in the
+    // first place cannot poison the whole response.
+    const flexWithUnknownAsset: RawStrategy = {
+      id: "S-FLEX",
+      asset: "GHOST",
+      lock_type: { type: "flex" },
+      apr_estimate: { low: "8.0000" },
+      user_min_allocation: "0",
+      auto_compound: { type: "disabled" },
+      can_allocate: true,
+    };
+    const client = fakeClient([
+      flexWithUnknownAsset,
+      instant("S-OK", "XETH", "8.0000"),
+    ]);
+    const result = await getEarnProducts(client, "Premium");
+    expect(result.map((p) => p.strategyId)).toEqual(["S-OK"]);
   });
 });

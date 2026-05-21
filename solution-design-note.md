@@ -87,7 +87,12 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   future lock type are classified by lock structure and default to "locked"
   (Premium/Private only).
 - A strategy referencing an **unknown asset code**, a file with **malformed JSON**, or a
-  Meridian response carrying an **error** all produce a structured error, not a crash.
+  Meridian response carrying an **error** all produce a structured error, not a crash. A
+  broken asset reference is malformed data: it **fails the whole request** with a `500`
+  rather than silently dropping one product — a deliberate fail-closed choice, so a
+  data-integrity problem is loud instead of quietly shrinking the catalog. (Resolution runs
+  only for genuine catalog candidates, so a bad reference on an already-excluded `flex` or
+  unallocatable strategy cannot trigger it — see "How a strategy becomes a product".)
 - **The data loader fails closed.** The service reads every `.json` file in `data/` and
   classifies each by its Meridian envelope shape. It requires both a strategies capture and
   an assets capture — if either is absent it returns a structured `DATA_UNAVAILABLE`
@@ -113,6 +118,8 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   a separate feature with its own endpoint and UX.
 - **Localised display.** `apyDisplay` currently uses a fixed `4.25%` format; format per the
   customer's locale.
-- **HTTP surface.** The PoC exposes a single route; an unknown path falls through to
-  Express's default `404`. Add a JSON `404` response and a catch-all error-handler middleware.
+- **HTTP surface.** The service exposes a single route, wrapped by a backstop error-handler
+  middleware so no unexpected exception escapes as a stack trace. An unknown path still
+  falls through to Express's default `404`; adding a structured JSON `404` body is a small
+  follow-up as more routes are introduced.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.

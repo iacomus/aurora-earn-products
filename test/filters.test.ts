@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  passesAllFilters,
-  STRATEGY_FILTERS,
+  passes,
+  PRE_ASSET_FILTERS,
+  POST_ASSET_FILTERS,
   type FilterInput,
+  type StrategyContext,
 } from "../src/domain/filters";
 import type { RawAsset, RawStrategy } from "../src/meridian/schema";
 
@@ -19,35 +21,66 @@ const strategy = (over: Partial<RawStrategy> = {}): RawStrategy => ({
 
 const enabledAsset: RawAsset = { altname: "ETH", status: "enabled" };
 
-const input = (over: Partial<FilterInput> = {}): FilterInput => ({
+const context = (over: Partial<StrategyContext> = {}): StrategyContext => ({
   strategy: strategy(),
-  asset: enabledAsset,
   tier: "Premium",
   ...over,
 });
 
-describe("passesAllFilters", () => {
-  it("keeps a fully-qualifying strategy", () => {
-    expect(passesAllFilters(input())).toBe(true);
+const input = (over: Partial<FilterInput> = {}): FilterInput => ({
+  ...context(),
+  asset: enabledAsset,
+  ...over,
+});
+
+describe("PRE_ASSET_FILTERS — cheap, strategy-only exclusions", () => {
+  it("exposes its named rules in application order", () => {
+    expect(PRE_ASSET_FILTERS.map((f) => f.name)).toEqual([
+      "lock-type",
+      "can-allocate",
+    ]);
+  });
+
+  it("keeps a strategy that clears every cheap exclusion", () => {
+    expect(passes(PRE_ASSET_FILTERS, context())).toBe(true);
   });
 
   it("drops a flex strategy (lock-type filter)", () => {
     expect(
-      passesAllFilters(
-        input({ strategy: strategy({ lock_type: { type: "flex" } }) }),
+      passes(
+        PRE_ASSET_FILTERS,
+        context({ strategy: strategy({ lock_type: { type: "flex" } }) }),
       ),
     ).toBe(false);
   });
 
   it("drops a strategy with can_allocate:false (can-allocate filter)", () => {
     expect(
-      passesAllFilters(input({ strategy: strategy({ can_allocate: false }) })),
+      passes(
+        PRE_ASSET_FILTERS,
+        context({ strategy: strategy({ can_allocate: false }) }),
+      ),
     ).toBe(false);
+  });
+});
+
+describe("POST_ASSET_FILTERS — asset-aware eligibility rules", () => {
+  it("exposes its named rules in application order", () => {
+    expect(POST_ASSET_FILTERS.map((f) => f.name)).toEqual([
+      "asset-status",
+      "apy-threshold",
+      "tier-eligibility",
+    ]);
+  });
+
+  it("keeps a fully-qualifying strategy", () => {
+    expect(passes(POST_ASSET_FILTERS, input())).toBe(true);
   });
 
   it("drops a strategy whose asset is not enabled (asset-status filter)", () => {
     expect(
-      passesAllFilters(
+      passes(
+        POST_ASSET_FILTERS,
         input({ asset: { altname: "ETH", status: "disabled" } }),
       ),
     ).toBe(false);
@@ -56,7 +89,8 @@ describe("passesAllFilters", () => {
   it("drops a sub-3% strategy, comparing the boundary in exact decimal (apy-threshold filter)", () => {
     // "2.9999999999999999" parses to the double 3.0 but is < 3 as an exact decimal.
     expect(
-      passesAllFilters(
+      passes(
+        POST_ASSET_FILTERS,
         input({
           strategy: strategy({ apr_estimate: { low: "2.9999999999999999" } }),
         }),
@@ -70,27 +104,17 @@ describe("passesAllFilters", () => {
       lock_type: { type: "bonded", unbonding_period: 1000 },
     });
     expect(
-      passesAllFilters(input({ strategy: bonded, tier: "Standard" })),
+      passes(POST_ASSET_FILTERS, input({ strategy: bonded, tier: "Standard" })),
     ).toBe(false);
-    expect(passesAllFilters(input({ strategy: bonded, tier: "Premium" }))).toBe(
-      true,
-    );
-  });
-});
-
-describe("STRATEGY_FILTERS", () => {
-  it("exposes named rules in application order", () => {
-    expect(STRATEGY_FILTERS.map((f) => f.name)).toEqual([
-      "lock-type",
-      "can-allocate",
-      "asset-status",
-      "apy-threshold",
-      "tier-eligibility",
-    ]);
+    expect(
+      passes(POST_ASSET_FILTERS, input({ strategy: bonded, tier: "Premium" })),
+    ).toBe(true);
   });
 
   it("lets a single rule be run in isolation", () => {
-    const apyFilter = STRATEGY_FILTERS.find((f) => f.name === "apy-threshold");
+    const apyFilter = POST_ASSET_FILTERS.find(
+      (f) => f.name === "apy-threshold",
+    );
     expect(
       apyFilter?.keep(
         input({ strategy: strategy({ apr_estimate: { low: "1.0000" } }) }),

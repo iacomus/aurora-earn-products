@@ -50,7 +50,8 @@ Three layers, so the business logic is isolated and unit-testable without I/O:
    `POST /private/Earn/Strategies` and `GET /public/Assets`.
 2. **Domain** (`src/domain/`) — pure functions: APR→APY conversion, tier model,
    transform/filter, orchestration. No I/O.
-3. **HTTP** (`src/routes/`, `src/app.ts`, `src/server.ts`) — a thin Express layer.
+3. **HTTP** (`src/routes/`, `src/app.ts`, `src/server.ts`) — a thin Express layer, with a
+   backstop error-handler middleware so every failure leaves as a structured response.
 
 Every `*.json` file in `data/` is treated as a captured API response and classified by
 envelope shape, so graders can add files freely.
@@ -114,9 +115,11 @@ The service makes **no outbound network calls at runtime** — all data comes fr
   A frequency over ~2 years rounds to under one period a year and is treated as
   non-compounding (APY = APR); a pathologically short one (sub-minute) would exceed `pow`'s
   range. Neither occurs in Meridian's data.
-- **One route only.** An unknown path returns Express's default `404` (plain text, not a
-  stack trace). A production service would add a JSON `404` and a catch-all error-handler
-  middleware as more routes are added.
+- **Unknown paths return Express's default `404`.** The service exposes one route; an
+  unknown path falls through to Express's built-in `404` (plain text, not a stack trace).
+  A structured JSON `404` body is a small production follow-up. Errors that escape the
+  route handler itself are caught by a backstop error-handler middleware and returned as a
+  structured error.
 - **`PORT=0`** (asking the OS for a free port) is treated as unset and falls back to 3000.
 - **Data is read once and cached** for the process lifetime — no auth, rate limiting, or
   observability either, all out of scope for a PoC. A concurrent burst of requests during
