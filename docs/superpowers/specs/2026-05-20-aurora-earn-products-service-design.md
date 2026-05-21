@@ -53,14 +53,18 @@ Per Meridian's docs, "flexible" is the **UI name for `instant`** — not the `fl
 Three layers, so the business logic that carries risk is isolated and unit-testable
 without I/O:
 
-1. **Data layer** — globs `data/`, reads files, classifies them by shape, validates them
-   against schemas, merges them into a strategies list + an asset map.
+1. **Meridian API client layer** (`meridian/`) — a `MeridianEarnClient` interface modelling the
+   two Meridian Earn endpoints. The shipped `FileMockMeridianClient` *mocks those calls*,
+   reading captured API responses from `data/` instead of the network. It is the only
+   component that would change for a live integration — a production `HttpMeridianClient`
+   implements the same interface against `POST /private/Earn/Strategies` and
+   `GET /public/Assets`.
 2. **Domain layer** — pure functions. Transforms a raw strategy + asset map into an
-   `EarnProduct`, computes APY, applies the APY filter and tier model, sorts.
+   `EarnProduct`, computes APY, applies the filters and tier model, sorts.
 3. **HTTP layer** — a thin Express route. Validates the `tier` query param, calls the
    domain layer, maps domain errors onto HTTP responses.
 
-The domain layer performs no I/O — it is pure functions over already-loaded data.
+The domain layer performs no I/O — it is pure functions over data the client returned.
 
 ### Module layout
 
@@ -71,23 +75,42 @@ src/
   config.ts                DATA_DIR (default <cwd>/data), PORT (default 3000)
   errors.ts                AppError types + structured error shape
   routes/earn-products.ts  validate ?tier, call service, map errors → HTTP status
-  data/schema.ts           zod schemas: Meridian envelope, strategy item, asset entry
-  data/loader.ts           glob data dir, read, classify by shape, validate, merge
+  meridian/client.ts         MeridianEarnClient interface + Meridian envelope / raw types
+  meridian/schema.ts         zod schemas: Meridian envelope, strategy item, asset entry
+  meridian/mock-client.ts    FileMockMeridianClient — glob data/, classify captures, validate, merge
   domain/apy.ts            APR → APY conversion (pure)
   domain/tiers.ts          lock_type → access model → eligibleTiers (pure)
   domain/transform.ts      raw strategy + asset map → EarnProduct | excluded (pure)
-  domain/earn-products.ts  orchestrate: load → transform → filter by tier → sort
+  domain/earn-products.ts  orchestrate: client → transform → filter by tier → sort
 test/
   apy.test.ts              conversion + compounding-gate cases
   tiers.test.ts            all five lock types → eligibleTiers
   transform.test.ts        asset resolution, APY filter boundaries, displayName
-  loader.test.ts           shape detection, multi-file merge, malformed-file errors
+  mock-client.test.ts      capture classification, multi-file merge, malformed-capture errors
   earn-products.test.ts    end-to-end endpoint test per tier
 Dockerfile
 docker-compose.yml
 ```
 
-## 4. Data layer
+## 4. Meridian API client (mock)
+
+`MeridianEarnClient` models the two Meridian Earn endpoints the brief names:
+
+```ts
+interface MeridianEarnClient {
+  listStrategies(): Promise<RawStrategy[]>;   // POST /private/Earn/Strategies
+  listAssets(): Promise<AssetMap>;            // GET  /public/Assets
+}
+```
+
+The methods are `async`, so the interface is a faithful stand-in for an HTTP client — a
+production `HttpMeridianClient` implements the same signatures with no downstream change.
+
+`FileMockMeridianClient` is the shipped implementation. It treats **each `*.json` file in
+`data/` as a captured response** from one of the two endpoints, identifies which by
+envelope shape, validates it, and returns the merged result per endpoint. It performs no
+network I/O, satisfying the runtime-network-closed constraint. The rest of this section
+describes its internals.
 
 ### Envelope
 
@@ -121,7 +144,7 @@ Graders add JSON files with **arbitrary names** during scoring, so files are cla
 
 ### Validation (zod)
 
-`data/schema.ts` defines zod schemas for the envelope, a strategy item, and an asset entry.
+`meridian/schema.ts` defines zod schemas for the envelope, a strategy item, and an asset entry.
 Schemas are **lenient about unknown keys** (Meridian adds fields; graders add files) but
 **strict about the fields we consume**.
 
@@ -268,7 +291,9 @@ true 2.996% APY is excluded even though it would *display* `"3.00%"` — the rea
 
 ## 7. Error model
 
-Success → a plain JSON array. Failure → a structured object, never a stack trace:
+Success → a plain JSON array — possibly empty (`[]`) if no product qualifies for the
+requested tier; an empty result is a success, not an error. Failure → a structured object,
+never a stack trace:
 
 ```json
 { "error": { "code": "INVALID_TIER", "message": "tier must be one of: standard, premium, private" } }
@@ -331,9 +356,9 @@ TDD on the domain core — the logic that carries risk. Not exhaustive coverage;
   XXTZ = 2.50% out, AVAX/ALGO out, MINA dropped for missing `apr_estimate`); dangling asset
   code → error; `can_allocate: false` → dropped; non-`enabled` asset status → dropped;
   `displayName` synthesis.
-- **`loader.test.ts`** — shape detection; multi-file merge; malformed file → structured
-  error; non-empty `error` array → structured error; duplicate `id` / asset-key dedupe;
-  non-matching file ignored.
+- **`mock-client.test.ts`** — capture classification by shape; multi-file merge; malformed
+  capture → structured error; non-empty `error` array → structured error; duplicate `id` /
+  asset-key dedupe; non-matching file ignored.
 - **`earn-products.test.ts`** — endpoint per tier; invalid tier → 400; sort order; missing
   data dir → 500.
 
@@ -403,6 +428,12 @@ Documented in `README.md` / `solution-design-note.md`:
   Meridian's docs state Earn *"generally requires Intermediate tier"* — unrelated to Aurora's
   Standard/Premium/Private *customer* tiers despite the shared word. The service never maps
   it onto the tier model; doing so would conflate two unrelated systems.
+- **Geographic availability is not filtered.** The brief lists *"geographic availability"*
+  among what `POST /private/Earn/Strategies` returns. The mock data has no explicit geo
+  field; any geographic restriction would surface inside `allocation_restriction_info`. The
+  service does not filter on it — there is no stated requirement, and correct geo-gating
+  needs the *customer's* country of residence, which the service does not receive. A
+  production version would take a customer region and filter accordingly.
 - **`flex` allocation model.** In Meridian's real product, `flex` ("Meridian Rewards") is an
   account-wide toggle with no manual allocation. Surfacing it as a selectable catalog item
   is a simplification; a production integration would treat `flex` differently in the UI.
