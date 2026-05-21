@@ -1,8 +1,8 @@
 // src/domain/transform.ts
-import { AppError } from '../errors';
-import type { RawStrategy, AssetMap } from '../meridian/schema';
-import { computeApy } from './apy';
-import { accessModel, eligibleTiers, type Tier } from './tiers';
+import { AppError } from "../errors";
+import type { RawStrategy, AssetMap } from "../meridian/schema";
+import { computeApy } from "./apy";
+import { accessModel, eligibleTiers, type Tier } from "./tiers";
 
 const APY_THRESHOLD = 3; // percent
 
@@ -19,23 +19,23 @@ export interface EarnProduct {
 }
 
 const LOCK_WORD: Record<string, string> = {
-  instant: 'Flexible',
-  flex: 'Flexible',
-  bonded: 'Bonded',
-  timed: 'Fixed-Term',
+  instant: "Flexible",
+  flex: "Flexible",
+  bonded: "Bonded",
+  timed: "Fixed-Term",
 };
 
 const YIELD_WORD: Record<string, string> = {
-  staking: 'Staking',
-  defi: 'DeFi Vault',
-  opt_in_rewards: 'Rewards',
+  staking: "Staking",
+  defi: "DeFi Vault",
+  opt_in_rewards: "Rewards",
 };
 
 /** Synthesises a customer-facing product name — the source data carries no name field. */
 export function displayName(strategy: RawStrategy, altname: string): string {
-  const lockWord = LOCK_WORD[strategy.lock_type.type] ?? '';
-  const yieldWord = YIELD_WORD[strategy.yield_source?.type ?? ''] ?? 'Earn';
-  return [altname, lockWord, yieldWord].filter((w) => w !== '').join(' ');
+  const lockWord = LOCK_WORD[strategy.lock_type.type] ?? "";
+  const yieldWord = YIELD_WORD[strategy.yield_source?.type ?? ""] ?? "Earn";
+  return [altname, lockWord, yieldWord].filter((w) => w !== "").join(" ");
 }
 
 /**
@@ -43,12 +43,15 @@ export function displayName(strategy: RawStrategy, altname: string): string {
  * (can_allocate:false, non-enabled asset, or APY below 3% / absent).
  * Throws AppError(DATA_MALFORMED) if the strategy references an unknown asset code.
  */
-export function toProduct(strategy: RawStrategy, assets: AssetMap): EarnProduct | null {
+export function toProduct(
+  strategy: RawStrategy,
+  assets: AssetMap,
+): EarnProduct | null {
   // 1. Resolve the asset — a dangling reference is malformed data.
   const asset = assets[strategy.asset];
   if (!asset) {
     throw new AppError(
-      'DATA_MALFORMED',
+      "DATA_MALFORMED",
       `Strategy ${strategy.id} references unknown asset code "${strategy.asset}"`,
     );
   }
@@ -57,7 +60,7 @@ export function toProduct(strategy: RawStrategy, assets: AssetMap): EarnProduct 
   if (strategy.can_allocate === false) return null;
 
   // 3. Asset-status filter — the asset is not operational platform-wide.
-  if (asset.status !== 'enabled') return null;
+  if (asset.status !== "enabled") return null;
 
   // 4 & 5. APY + the hard ≥3% filter, on the unrounded value.
   const apyExact = computeApy(strategy);

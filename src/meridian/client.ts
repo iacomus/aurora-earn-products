@@ -1,5 +1,5 @@
 // src/meridian/client.ts
-import type { RawStrategy, AssetMap } from './schema';
+import type { RawStrategy, AssetMap } from "./schema";
 
 /**
  * Models the two Meridian Earn endpoints the service depends on.

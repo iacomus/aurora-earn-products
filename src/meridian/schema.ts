@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 /** A string that parses to a finite number, e.g. "4.0000". */
 const numericString = z
   .string()
-  .refine((s) => s.trim() !== '' && Number.isFinite(Number(s)), {
-    message: 'expected a numeric string',
+  .refine((s) => s.trim() !== "" && Number.isFinite(Number(s)), {
+    message: "expected a numeric string",
   });
 
 export const lockTypeSchema = z

@@ -1,17 +1,21 @@
-import type { RawStrategy, RawAutoCompound } from '../meridian/schema';
+import type { RawStrategy, RawAutoCompound } from "../meridian/schema";
 
 const SECONDS_PER_YEAR = 31_536_000; // 365 days
 
 /** Whether rewards effectively compound, per the auto_compound field. */
-export function isCompounding(autoCompound: RawAutoCompound | undefined): boolean {
+export function isCompounding(
+  autoCompound: RawAutoCompound | undefined,
+): boolean {
   if (!autoCompound) return false;
-  if (autoCompound.type === 'enabled') return true;
-  if (autoCompound.type === 'optional') return autoCompound.default === true;
+  if (autoCompound.type === "enabled") return true;
+  if (autoCompound.type === "optional") return autoCompound.default === true;
   return false; // 'disabled', or any unknown type
 }
 
 /** Compounding periods per year, from a payout frequency in seconds. */
-export function compoundingPeriodsPerYear(payoutFrequencySeconds: number): number {
+export function compoundingPeriodsPerYear(
+  payoutFrequencySeconds: number,
+): number {
   return Math.round(SECONDS_PER_YEAR / payoutFrequencySeconds);
 }
 

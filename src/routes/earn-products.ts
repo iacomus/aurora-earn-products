@@ -1,9 +1,9 @@
 // src/routes/earn-products.ts
-import type { Request, Response } from 'express';
-import type { MeridianEarnClient } from '../meridian/client';
-import { getEarnProducts } from '../domain/earn-products';
-import { parseTier } from '../domain/tiers';
-import { toStructuredError } from '../errors';
+import type { Request, Response } from "express";
+import type { MeridianEarnClient } from "../meridian/client";
+import { getEarnProducts } from "../domain/earn-products";
+import { parseTier } from "../domain/tiers";
+import { toStructuredError } from "../errors";
 
 /** Builds the GET /earn-products handler, bound to a Meridian client. */
 export function earnProductsHandler(client: MeridianEarnClient) {
