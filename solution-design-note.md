@@ -35,9 +35,14 @@ service changes.**
 1. **Resolve the asset name.** Meridian's `XETH` → `ETH` via the Assets data. (Watch out:
    `POL`'s display name is `MATIC` — codes and names are not interchangeable.)
 2. **Work out the APY.** Meridian gives an *APR range* (`low`/`high`), not an APY. We take the
-   conservative `low` and convert: `APY = (1 + APR/n)^n - 1`, where `n` is the whole number
-   of compounding periods per year (payouts are discrete events). We only compound when the
-   strategy actually auto-compounds. All of this runs in exact decimal — see "Known edge
+   conservative `low` and convert with the standard formula `APY = (1 + APR/n)^n - 1`. Here
+   `n` is the **count of payout events in a year** — necessarily a whole number, because a
+   payout either happens in a given period or it does not. Weekly payouts give `n = 52`, not
+   the calendar ratio `365 ÷ 7 ≈ 52.14`: the service derives `n` from the strategy's payout
+   frequency and rounds to the nearest integer (`Math.round`). This matches Meridian's own
+   definition — its docs describe `n` as the "number of funding periods per year based on
+   your weekly payouts", likewise an integer. We only compound when the strategy actually
+   auto-compounds; otherwise APY = APR. All of this runs in exact decimal — see "Known edge
    cases".
 3. **Apply the filters** (a strategy must pass all of them):
    - The lock type is **not `flex`** — `flex` is Meridian Rewards, an account-wide passive
