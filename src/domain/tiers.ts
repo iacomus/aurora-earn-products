@@ -6,7 +6,9 @@ export type Tier = "Standard" | "Premium" | "Private";
 export type AccessModel = "instant-access" | "restricted";
 
 const RESTRICTED_TYPES = new Set(["bonded", "hybrid", "timed"]);
-const INSTANT_TYPES = new Set(["instant", "flex"]);
+// `flex` is intentionally absent: Meridian Rewards strategies are filtered out
+// before tiering (see transform.ts), so flex never reaches accessModel.
+const INSTANT_TYPES = new Set(["instant"]);
 
 /**
  * Classifies a lock type by withdrawal-side structural signals.

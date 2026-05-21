@@ -95,6 +95,22 @@ describe("toProduct", () => {
     ).toBeNull();
   });
 
+  it("drops a flex strategy — Meridian Rewards is not a catalog product", () => {
+    // High APY and can_allocate:true, so the lock type is the only reason to drop it.
+    expect(
+      toProduct(
+        strat({
+          id: "S",
+          asset: "XETH",
+          lock_type: { type: "flex" },
+          apr_estimate: { low: "8.0000" },
+          can_allocate: true,
+        }),
+        assets,
+      ),
+    ).toBeNull();
+  });
+
   it("drops a strategy whose asset is not enabled", () => {
     expect(toProduct(strat({ id: "S", asset: "DEAD" }), assets)).toBeNull();
   });
@@ -119,21 +135,20 @@ describe("toProduct", () => {
         id: "S",
         asset: "XETH",
         apr_estimate: { low: "3.0000" },
-        lock_type: { type: "flex" },
       }),
       assets,
     );
     expect(p?.apyValue).toBe(3);
   });
 
-  it("excludes POL — apr.low '2.9999999999999999' is below 3% as an exact decimal", () => {
-    // Parses to the double 3.0, but the exact decimal is < 3 — POL is dropped.
+  it("excludes a strategy whose apr.low is below 3% as an exact decimal", () => {
+    // POL's "2.9999999999999999" parses to the double 3.0, but the exact
+    // decimal is < 3 — the strategy is dropped by the threshold filter.
     const p = toProduct(
       strat({
         id: "S",
         asset: "POL",
         apr_estimate: { low: "2.9999999999999999" },
-        lock_type: { type: "flex" },
       }),
       assets,
     );

@@ -7,11 +7,10 @@ const lock = (props: Record<string, unknown>): RawLockType =>
   props as RawLockType;
 
 describe("accessModel", () => {
-  it("treats instant and flex as instant-access", () => {
+  it("treats instant as instant-access", () => {
     expect(
       accessModel(lock({ type: "instant", payout_frequency: 604800 })),
     ).toBe("instant-access");
-    expect(accessModel(lock({ type: "flex" }))).toBe("instant-access");
   });
 
   it("treats bonded, hybrid, and timed as restricted", () => {

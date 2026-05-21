@@ -51,10 +51,11 @@ Mapping a strategy to the required output shape needs care:
   (low / high / midpoint) is a judgment call to make and document. `apyValue` is numeric,
   `apyDisplay` is a localised string like `"4.25%"`.
 - **`lock_type.type` has five values in the data:** `instant`, `bonded`, `flex`, `hybrid`,
-  `timed`. The brief's tier rules only name `instant` (Standard-eligible) and `bonded` with
-  an unbonding period (Premium/Private only). Deciding how `flex`, `hybrid`, and `timed`
-  map onto the tier model — and whether `flex` counts as instant-access for Standard — is
-  the central business-logic judgment call. Make it deliberately and document the reasoning.
+  `timed`. The resolved model: `flex` (Meridian Rewards — an account-wide passive yield, not a
+  pickable product) is **excluded from the catalog entirely**; `instant` is instant-access
+  (all tiers, Standard included); `bonded`/`hybrid`/`timed` carry a withdrawal lock and are
+  Premium/Private only. The `can_allocate: true` on some `flex` records contradicts Meridian's
+  model and is not relied on — the exclusion keys off the lock type.
 - **Deliberate edge cases in the mock data:**
   - `MINA` has **no `apr_estimate` field at all** — handle the missing-APY case.
   - `ALGO` APY is `0.0000`; `AVAX` is `0.5–1.5` — both below the 3% threshold.

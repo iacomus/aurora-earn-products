@@ -38,7 +38,7 @@ export function displayName(strategy: RawStrategy, altname: string): string {
 
 /**
  * Transforms one raw strategy into an EarnProduct, or null if it is filtered out
- * (can_allocate:false, non-enabled asset, or APY below 3% / absent).
+ * (a `flex` lock type, can_allocate:false, a non-enabled asset, or APY below 3% / absent).
  * Throws AppError(DATA_MALFORMED) if the strategy references an unknown asset code.
  */
 export function toProduct(
@@ -54,18 +54,25 @@ export function toProduct(
     );
   }
 
-  // 2. Availability filter — the account cannot allocate.
+  // 2. Lock-type filter — `flex` is Meridian Rewards: an account-wide passive
+  // yield, not a per-strategy allocation a customer picks. It is not a catalog
+  // product, so it never appears in /earn-products. (Some flex records carry
+  // `can_allocate: true`, which contradicts Meridian's model — the exclusion is
+  // by lock type, not that flag.)
+  if (strategy.lock_type.type === "flex") return null;
+
+  // 3. Availability filter — the account cannot allocate.
   if (strategy.can_allocate === false) return null;
 
-  // 3. Asset-status filter — the asset is not operational platform-wide.
+  // 4. Asset-status filter — the asset is not operational platform-wide.
   if (asset.status !== "enabled") return null;
 
-  // 4 & 5. Compute the display/sort APY, then apply the hard ≥3% filter —
+  // 5 & 6. Compute the display/sort APY, then apply the hard ≥3% filter —
   // meetsApyThreshold compares in exact decimal for non-compounding strategies.
   const apyExact = computeApy(strategy);
   if (apyExact === null || !meetsApyThreshold(strategy)) return null;
 
-  // 6 & 7. Build the output object (apyValue rounded to 2 decimals for display).
+  // 7 & 8. Build the output object (apyValue rounded to 2 decimals for display).
   const apyValue = Math.round(apyExact * 100) / 100;
   return {
     strategyId: strategy.id,

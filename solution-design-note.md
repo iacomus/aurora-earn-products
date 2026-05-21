@@ -38,6 +38,8 @@ service changes.**
    conservative `low` and convert: `APY = (1 + APR/n)^n - 1`, where `n` is the number of
    compounding periods per year. We only compound when the strategy actually auto-compounds.
 3. **Apply the filters** (a strategy must pass all of them):
+   - The lock type is **not `flex`** — `flex` is Meridian Rewards, an account-wide passive
+     yield rather than a pickable product (see "Known edge cases").
    - APY is at least **3%** (Aurora compliance rule).
    - `can_allocate` is not `false` (your account can actually invest in it).
    - The asset is `enabled` on Meridian (not delisted/suspended).
@@ -55,6 +57,9 @@ A strategy is *locked* if it has an unbonding period, an exit queue, delayed wit
 a fixed term — otherwise it is instant-access. This is decided from the data's structure,
 not just the lock-type label, so new Meridian lock types are handled safely.
 
+`flex` strategies never reach this step — they are excluded from the catalog upstream
+(see "Known edge cases" below).
+
 ## Known edge cases (already handled)
 
 - A strategy with **no reward-rate data** is dropped (cannot show an APY we don't have).
@@ -67,8 +72,13 @@ not just the lock-type label, so new Meridian lock types are handled safely.
   sub-threshold rather than advertising it as "≥ 3%". The comparison uses the
   `big.js` decimal library; a production Meridian API returning numeric values
   directly would remove this string-parsing ambiguity entirely.
-- Lock types beyond the documented `instant`/`bonded` (`flex`, `hybrid`, `timed`) are
-  classified by their lock structure; unknown future types default to "locked".
+- **`flex` strategies are excluded from the catalog.** Meridian's `flex` ("Meridian Rewards") is
+  an account-wide passive yield, not a per-strategy allocation a customer can pick — it is
+  not a catalog product, so `flex` strategies are dropped for every tier. (Some `flex`
+  records in the data carry `can_allocate: true`, which contradicts Meridian's model; the
+  exclusion keys off the lock type, not that flag.) `hybrid`, `timed`, and any unknown
+  future lock type are classified by lock structure and default to "locked"
+  (Premium/Private only).
 - A strategy referencing an **unknown asset code**, a file with **malformed JSON**, or a
   Meridian response carrying an **error** all produce a structured error, not a crash.
 - **The data loader fails closed.** The service reads every `.json` file in `data/` and
@@ -90,8 +100,10 @@ not just the lock-type label, so new Meridian lock types are handled safely.
 - **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
   Aurora's customers span jurisdictions with different rules, pass the customer's country to
   the endpoint and filter against Aurora's own per-jurisdiction permissions.
-- **`flex` products.** Meridian's `flex` ("Meridian Rewards") is an account-wide setting, not a
-  per-strategy allocation — the app should present it differently from a normal product.
+- **Surface Meridian Rewards (`flex`) separately.** `flex` strategies are excluded from
+  `/earn-products`. Aurora may still want to show these yields to customers — but as passive
+  yield inline with a wallet balance, not as a selectable item in the earn catalog. That is
+  a separate feature with its own endpoint and UX.
 - **Localised display.** `apyDisplay` currently uses a fixed `4.25%` format; format per the
   customer's locale.
 - **HTTP surface.** The PoC exposes a single route; an unknown path falls through to

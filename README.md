@@ -64,9 +64,16 @@ envelope shape, so graders can add files freely.
   exact decimal (`big.js`): a rate like POL's `2.9999999999999999`, which parses to the
   IEEE-754 double `3.0`, is correctly treated as below 3% rather than rounded onto the
   boundary.
-- **Tier model by structural signal.** A strategy is instant-access (Standard-eligible) when
-  its lock type has no unbonding period, exit queue, or fixed term — covering `instant` and
-  `flex`. `bonded`/`hybrid`/`timed` are Premium/Private only.
+- **`flex` strategies are excluded entirely.** Meridian's `flex` ("Meridian Rewards") is an
+  account-wide passive yield, not a per-strategy allocation a customer can pick — so it is
+  not a catalog product and never appears in `/earn-products`, for any tier. Some `flex`
+  records in the source data carry `can_allocate: true`, which contradicts Meridian's model;
+  the exclusion keys off the lock type, not that flag.
+- **Tier model by structural signal.** Among catalog strategies, `instant` is instant-access
+  — visible to every tier, Standard included. `bonded`/`hybrid`/`timed` carry a withdrawal
+  lock (unbonding period, exit queue, or fixed term) and are restricted to Premium/Private.
+  The classification reads the lock structure, not just the type label, so unknown future
+  lock types default to restricted.
 - **`can_allocate: false` strategies are dropped.** The `/private/` response is account-
   scoped; if Aurora's account cannot allocate, customers cannot invest.
 - **Fail-closed errors.** Any malformed/unavailable data yields a structured error object.
@@ -87,9 +94,6 @@ The service makes **no outbound network calls at runtime** — all data comes fr
 
 ## Known limitations
 
-- **`flex` allocation model.** In Meridian's real product `flex` ("Meridian Rewards") is an
-  account-wide toggle, not a per-strategy allocation. It is surfaced here as a normal
-  catalog item; a production frontend would treat it differently.
 - **Per-customer geography.** Meridian filters strategies by Aurora's *account* region; finer
   per-customer geo-eligibility would need the customer's country as an input.
 - **`displayName` is synthesised** from asset + lock + yield-source words — the source data
