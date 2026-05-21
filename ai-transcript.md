@@ -8,11 +8,11 @@ Full transcript of the Claude Code sessions used to build this assessment submis
 - 👤 Human = prompts typed by the developer, verbatim. 🤖 Claude = Claude's replies, verbatim.
 - 🔧 lines are tool calls; each tool result follows in a collapsed block, truncated to 20 lines (errors shown in full).
 - ❓ / ✅ blocks are `AskUserQuestion` exchanges — Claude posing a decision with options, and the developer's choice or typed reply. These are shown in full: they are the developer directing the work.
-- Claude's internal *thinking* is **not shown**: Claude Code's logs record that thinking occurred (with a verification signature) but do not persist its text. 387 thinking steps ran across these sessions; only the visible exchange is recoverable.
+- Claude's internal *thinking* is **not shown**: Claude Code's logs record that thinking occurred (with a verification signature) but do not persist its text. 424 thinking steps ran across these sessions; only the visible exchange is recoverable.
 - Harness noise (hook output, injected skill text, background-task notifications, context injections, file snapshots) is omitted.
 - One session is a *rewound fork* of another: its shared opening messages are shown once, under the parent session.
 
-**Sessions:** 8 · **Human prompts:** 69 · **Guided decisions (AskUserQuestion):** 22
+**Sessions:** 8 · **Human prompts:** 77 · **Guided decisions (AskUserQuestion):** 23
 
 | # | Session | When (local) | Prompts | Decisions |
 |---|---|---|---|---|
@@ -23,7 +23,7 @@ Full transcript of the Claude Code sessions used to build this assessment submis
 | 5 | btw: decimal.js pow() does support fractions - it might be the better choice he… | 2026-05-21 09:30 | 5 | 0 |
 | 6 | Clarify APR calculation for discrete payout periods | 2026-05-21 09:49 | 2 | 0 |
 | 7 | Run the code architect agent | 2026-05-21 10:05 | 17 | 3 |
-| 8 | Brainstorm assessment documentation requirements | 2026-05-21 12:22 | 12 | 5 |
+| 8 | Brainstorm assessment documentation requirements | 2026-05-21 12:22 | 20 | 6 |
 
 ---
 
@@ -12321,7 +12321,7 @@ One thing to flag before you send the link: **`ai-transcript.md` is missing.** `
 
 ## Session 8 — Brainstorm assessment documentation requirements
 
-*2026-05-21 12:22 → 2026-05-21 14:11  ·  12 human prompt(s)  ·  5 guided decision(s)  ·  branch `main`  ·  Claude Code 2.1.146*
+*2026-05-21 12:22 → 2026-05-21 16:05  ·  20 human prompt(s)  ·  6 guided decision(s)  ·  branch `main`  ·  Claude Code 2.1.146*
 
 <sub>source log: `f87387d9-5bc4-4c31-84aa-98e5c4697cb0.jsonl`</sub>
 
@@ -14605,5 +14605,1403 @@ The file /Users/james/dev/pws-se-assessment-20260506/scripts/build-transcript.py
 ```
 
 </details>
+
+### 🤖 Claude
+
+All edits applied. Regenerating and verifying an `AskUserQuestion` exchange renders as a visible Q&A:
+
+- 🔧 **Bash** — `python3 scripts/build-transcript.py 2>&1 && echo "--- sessions table ---" && sed -n '/^| # | Session/,/^$/p' a…`
+
+<details><summary>↳ tool result</summary>
+
+```
+Wrote ai-transcript.md: 8 sessions, 69 human prompts, 14610 lines, 630 KB
+--- sessions table ---
+| # | Session | When (local) | Prompts | Decisions |
+|---|---|---|---|---|
+| 1 | (untitled) | 2026-05-20 16:27 | 0 | 0 |
+| 2 | (untitled) | 2026-05-20 16:40 | 0 | 0 |
+| 3 | Calculate APY from APR and review error handling | 2026-05-20 17:00 | 15 | 11 |
+| 4 | Set up code review slash commands | 2026-05-20 22:01 | 18 | 3 |
+| 5 | btw: decimal.js pow() does support fractions - it might be the better choice he… | 2026-05-21 09:30 | 5 | 0 |
+| 6 | Clarify APR calculation for discrete payout periods | 2026-05-21 09:49 | 2 | 0 |
+| 7 | Run the code architect agent | 2026-05-21 10:05 | 17 | 3 |
+| 8 | Brainstorm assessment documentation requirements | 2026-05-21 12:22 | 12 | 5 |
+
+| # | Session | When (local) | Prompts |
+
+--- first AskUserQuestion exchange ---
+389:### ❓ Claude asked the developer to decide
+390-
+391-**Language** — Which language do you want to build the service in?
+392-
+[… 34 more line(s) truncated …]
+```
+
+</details>
+
+### 🤖 Claude
+
+The Q&A exchanges render cleanly — question, all options, and your decision all visible. The table now shows a **Decisions** column (22 guided decisions total). Let me confirm multi-question `AskUserQuestion` calls parse all answers:
+
+- 🔧 **Bash** — `grep -n -A20 "How should Claude's internal thinking" ai-transcript.md | head -24`
+
+<details><summary>↳ tool result</summary>
+
+```
+13722:**Thinking** — How should Claude's internal thinking blocks be handled in the transcript?
+13723-
+13724-- **Collapsed (<details>)** — Include thinking verbatim but inside collapsible <details> blocks. Faithful 'full transcript', but the reader isn't drowned — they expand it if they want. Renders cleanly on GitHub.
+13725-- **Exclude thinking** — Drop thinking blocks entirely. A transcript of the visible exchange only — prompts, responses, tools. Smallest, most readable file; arguably not the literal 'full' transcript.
+13726-- **Include inline** — Thinking shown inline like any other content. Maximally transparent and shows reasoning depth, but 2-3x larger and harder to skim.
+13727-
+13728-**Tool results** — How should tool results (file reads, bash output, etc.) be rendered?
+13729-
+13730-- **Truncate large ones** — Show the first ~20 lines of each result + a '[… N lines truncated …]' marker; show errors in full. Keeps the conversation flow readable without huge file dumps.
+13731-- **Full results** — Every tool result verbatim. Most faithful, but bloats the file massively with file contents the reviewer can already see in the repo.
+13732-- **Tool call only** — Show what tool was called with what args, but omit the result. Most compact; loses what Claude actually saw and reacted to.
+13733-
+13734-**Fork pair** — How should the rewound fork pair (5f4b1335 forked from 219c19fb) be handled?
+13735-
+13736-- **Both branches, labelled** — Include both as labelled sessions ('rewound fork of …'). The rewind itself is evidence of iterative refinement / redirecting the AI — which the brief explicitly evaluates. Some shared-prefix duplication.
+13737-- **Surviving branch only** — Determine which branch the final work continued on and include only that. Cleaner, no duplication — but hides that a redirection happened.
+13738-
+13739-### ✅ Developer's decision
+13740-
+13741-**Thinking:** Collapsed (<details>)
+[… 1 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Bash** — `sed -n '13739,13746p' ai-transcript.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+### ✅ Developer's decision
+
+**Thinking:** Collapsed (<details>)
+
+**Tool results:** Truncate large ones
+
+**Fork pair:** Both branches, labelled
+```
+
+</details>
+
+### 🤖 Claude
+
+All three answers parsed correctly. The `AskUserQuestion` fix is complete and verified.
+
+## `AskUserQuestion` exchanges now render in full
+
+Each one shows as a proper decision exchange:
+
+> **❓ Claude asked the developer to decide** — the question + every option with its description
+> **✅ Developer's decision** — your pick (or typed reply), one line per question
+
+Multi-question calls parse every answer; the answer-slicing anchors on the exact question text, so answers containing quotes don't break it.
+
+**Final transcript:** 8 sessions · **69 human prompts** · **22 guided decisions** (new column in the session table) · 14,610 lines · 630 KB.
+
+The converter is done. Two open items:
+
+1. **Commit** — `scripts/build-transcript.py` and `ai-transcript.md`. Want me to commit both now? (You may want to skim `ai-transcript.md` first.)
+2. **Final regeneration** — re-run `python3 scripts/build-transcript.py` as the last step before you submit, so the transcript captures this session in full. Note the inherent self-reference: Session 8 contains the transcript-building work, so a few tool outputs show fragments of the transcript itself — contained in collapsed blocks, and honestly just part of the record.
+
+### 👤 Human
+
+commit both
+
+- 🔧 **Bash** — `git add scripts/build-transcript.py ai-transcript.md && git status --short && echo "--- committing ---" && git…`  *(+ more lines)*
+
+<details><summary>↳ tool result</summary>
+
+```
+A  ai-transcript.md
+A  scripts/build-transcript.py
+?? scripts/__pycache__/
+--- committing ---
+6698f66 docs: add ai-transcript.md and the session-log converter
+```
+
+</details>
+
+### 🤖 Claude
+
+Committed as `6698f66`. One bit of hygiene — my debugging created `scripts/__pycache__/` (Python bytecode). Let me gitignore it so it never gets committed:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/.gitignore`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	node_modules/
+2	dist/
+3	coverage/
+4	*.log
+5	.DS_Store
+6
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/.gitignore`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/.gitignore has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `git add .gitignore && git commit -q -m "chore: ignore Python __pycache__" && echo "--- status ---" && git stat…`
+
+<details><summary>↳ tool result</summary>
+
+```
+--- status ---
+## main...origin/main [ahead 2]
+```
+
+</details>
+
+### 🤖 Claude
+
+Both commits are in, working tree is clean — `main` is 2 commits ahead of `origin/main`:
+
+- `6698f66` — `ai-transcript.md` + `scripts/build-transcript.py`
+- (gitignore) — ignore `__pycache__`
+
+Want me to push to `origin`?
+
+And the standing reminder: **re-run `python3 scripts/build-transcript.py` as the last step before submitting** so `ai-transcript.md` captures this session in full.
+
+### 👤 Human
+
+yes
+
+- 🔧 **Bash** — `git push origin main 2>&1 | tail -5 && echo "--- status ---" && git status -sb | head -1`
+
+<details><summary>↳ tool result</summary>
+
+```
+To github.com:iacomus/aurora-earn-products.git
+   a05ba85..09cb811  main -> main
+--- status ---
+## main...origin/main
+```
+
+</details>
+
+### 🤖 Claude
+
+Pushed — `main` is in sync with `origin/main`.
+
+The submission package is now in place:
+
+| Deliverable | State |
+|---|---|
+| Service code + `Dockerfile` + `docker-compose.yml` | ✅ verified (`docker compose up`, 93 tests) |
+| `README.md` | ✅ tightened to a brief architecture explanation |
+| `solution-design-note.md` | ✅ trimmed to one page |
+| `ai-transcript.md` + `scripts/build-transcript.py` | ✅ generated, committed, pushed |
+
+**One action left before you submit:** re-run `python3 scripts/build-transcript.py` as the final step so `ai-transcript.md` captures this session end-to-end — then commit and push that last regeneration.
+
+### 👤 Human
+
+"Localised APY display strings" - this is a requirement in the @ASSESSMENT.md ? how are we handling it?
+
+### 🤖 Claude
+
+Good catch — let me check the exact wording in the brief and what the code actually does.
+
+The brief, line 27 (the "Format for Aurora's frontend" requirement):
+> *"A clean JSON array suitable for direct use in Aurora's React Native app, **with localised APY display strings** and a stable sort order."*
+
+So yes — "localised APY display strings" is a stated Aurora requirement. Let me check exactly how `apyDisplay` is currently built:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/transform.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// src/domain/transform.ts
+2	import type Big from "big.js";
+3	import { AppError } from "../errors";
+4	import type { AssetMap, RawAsset, RawStrategy } from "../meridian/schema";
+5	import { accessModel, eligibleTiers, type Tier } from "./tiers";
+6	
+7	/** The customer-facing earn product — the service's output shape. */
+8	export interface EarnProduct {
+9	  strategyId: string;
+10	  asset: string;
+11	  displayName: string;
+12	  lockType: string;
+13	  apyDisplay: string;
+14	  apyValue: number;
+15	  eligibleTiers: Tier[];
+16	  minimumAmount: string;
+17	}
+18	
+19	const LOCK_WORD: Record<string, string> = {
+20	  instant: "Flexible",
+[… 61 more line(s) truncated …]
+```
+
+</details>
+
+### 🤖 Claude
+
+Here's the situation.
+
+## What the brief asks vs. what we ship
+
+**Brief, line 27** lists it as an Aurora requirement: *"...with localised APY display strings..."*
+
+**What the code does** — `src/domain/transform.ts:75`:
+```js
+apyDisplay: `${apy.toFixed(2)}%`,
+```
+That's a **fixed `en`-style format** — 2 decimals, period separator, hard-coded `%`. It is *not* locale-aware. A German-locale customer should see `"4,25 %"` (comma, space); a Turkish one `"%4,25"` (sign first). We emit `"4.25%"` for everyone.
+
+**How it's currently documented** — both the README and `solution-design-note.md` list it under known limitations / next steps: *"`apyDisplay` uses a fixed `%` format; true per-locale formatting is a future step."*
+
+## My honest assessment
+
+This is a **genuine gap against a stated requirement.** The brief puts "localised" in the requirements table, not the edge-cases — and Aurora is explicitly a *European* bank, where number formatting genuinely varies. Calling a named requirement a "future step" is a stretch. (`apyValue` the number is for logic; `apyDisplay` the string exists precisely to be the presentation layer — and the brief says that presentation should be localised.)
+
+The good news: it's **cheap to close.** `Intl.NumberFormat` is built into Node — zero new dependencies — and handles decimal separator, spacing, and sign placement per locale. The endpoint would take an optional `locale` (query param or `Accept-Language`), defaulting to `en-US` so the brief's example output `"4.25%"` still holds exactly.
+
+How would you like to handle it?
+
+### ❓ Claude asked the developer to decide
+
+**Localised APY** — How should we handle the "localised APY display strings" requirement?
+
+- **Implement it** — Add an optional locale input (query param / Accept-Language), format apyDisplay via Intl.NumberFormat per locale, default en-US so existing output is unchanged. Zero new deps. Delivers the stated requirement; touches the route, transform, tests, and docs.
+- **Keep fixed, reframe docs** — Leave apyDisplay as "4.25%" but stop calling localisation a 'future step' — document it as a deliberate scope decision (endpoint takes no locale input). Honest, but the requirement still isn't met.
+- **Leave entirely as-is** — No code or doc change. The 'future step' framing stays. Lowest effort; the gap against the brief's requirement remains, and undersold.
+
+### ✅ Developer's decision
+
+**Localised APY:** implement - lets discuss query  param versus accept-language
+
+### 🤖 Claude
+
+Good — let's settle the locale input. Three ways to do it:
+
+**1. Query param — `?tier=premium&locale=de-DE`**
+- Consistent with `tier` — the endpoint keeps one uniform input model, extending the brief's own `?tier=` interface.
+- Demonstrable: a reviewer sees it work with one `curl '...&locale=de-DE'` — the same way they'll test everything else. For an assessment, an invisible feature is a half-delivered one.
+- Simple to parse: one BCP-47 tag, validated directly by `Intl`. No q-value handling.
+- Slightly less "textbook HTTP" — a presentation preference in the URL rather than a header.
+
+**2. `Accept-Language` header**
+- The *correct* HTTP mechanism — content negotiation is exactly what this header is for; using it signals HTTP fluency.
+- The React Native app sets it once on its HTTP client; URLs stay clean.
+- But: the real header is a q-weighted list (`de-DE,de;q=0.9,en;q=0.8`). Honoring it *properly* means parsing that; a shortcut (first tag) is sloppy. More code for a PoC.
+- Invisible to a plain `curl` test — the reviewer only sees localisation if they know to add `-H`.
+
+**3. Both — `?locale=` overrides, `Accept-Language` falls back, then `en-US`**
+- Best ergonomics + demonstrable + HTTP-correct. ~10 extra lines.
+- For a PoC, arguably gold-plating the input layer.
+
+**My recommendation: query param (option 1).** In this context demonstrability and consistency win — the reviewer exercises the endpoint with `curl`, `tier` is already a query param, and a single BCP-47 tag is cleanly validated by `Intl` with no q-value rabbit hole. The default stays `en-US`, so `?tier=premium` with no locale still returns the brief's exact `"4.25%"`.
+
+If you want to signal HTTP depth, option 3 is a clean upgrade — but I wouldn't do header-*only* (option 2): it half-hides a requirement you're trying to visibly deliver.
+
+One small sub-decision either way: a malformed `locale` — 400 `INVALID_LOCALE` (consistent with `INVALID_TIER`, surfaces client typos) vs. lenient fallback to `en-US` (it's only cosmetic). I lean **400** for a compliance-minded bank, but it's minor.
+
+Which input mechanism do you want — query param, or both?
+
+### 👤 Human
+
+option 1
+
+### 🤖 Claude
+
+Option 1 it is — `?locale=` query param. Here's the implementation plan:
+
+**Behavior**
+- `GET /earn-products?tier={tier}&locale={bcp-47}` — `locale` optional, default `en-US` (so `?tier=premium` alone still returns the brief's exact `"4.25%"`).
+- `apyDisplay` formatted via `Intl.NumberFormat` per locale — `de-DE` → `"4,25 %"`, `tr-TR` → `"%4,25"`. `apyValue` (the number) is unchanged.
+- Malformed `locale` → `400 INVALID_LOCALE` (consistent with `INVALID_TIER`, surfaces client typos). Absent or empty → default.
+
+**Files**
+- `src/domain/locale.ts` *(new)* — `parseLocale()` (canonicalise via `Intl.getCanonicalLocales`, throw `INVALID_LOCALE` on malformed) + `formatApyDisplay(apy, locale)`.
+- `src/errors.ts` — add `INVALID_LOCALE` (400).
+- `src/domain/transform.ts` — `buildProduct` takes `locale`, formats `apyDisplay` via the new helper.
+- `src/domain/earn-products.ts` — `getEarnProducts` takes and threads `locale`.
+- `src/routes/earn-products.ts` — read + validate `?locale`, pass through.
+- Tests — new `test/locale.test.ts`; update `transform`, `endpoint`, `earn-products-service` tests.
+- Docs — `README.md`, `solution-design-note.md`, the design spec, `CLAUDE.md`: move localised display from "known limitation" to a delivered feature; document the `locale` param.
+
+**Approach** — TDD (the repo's vitest setup), then verify with `npm test` + `docker compose up` (confirms full-ICU works in `node:22-slim`, so non-`en` locales format correctly).
+
+Good to go?
+
+### 👤 Human
+
+yes
+
+- 🔧 **Skill** — `superpowers:test-driven-development`
+
+<details><summary>↳ tool result</summary>
+
+```
+Launching skill: superpowers:test-driven-development
+```
+
+</details>
+
+### 🤖 Claude
+
+I'm using the test-driven-development skill — test first, watch it fail, minimal code to pass. Let me read the existing code and test patterns first:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/src/errors.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// src/errors.ts
+2	export type ErrorCode =
+3	  | "INVALID_TIER"
+4	  | "NOT_FOUND"
+5	  | "DATA_UNAVAILABLE"
+6	  | "DATA_MALFORMED"
+7	  | "DATA_UPSTREAM_ERROR"
+8	  | "INTERNAL_ERROR";
+9	
+10	const HTTP_STATUS: Record<ErrorCode, number> = {
+11	  INVALID_TIER: 400,
+12	  NOT_FOUND: 404,
+13	  DATA_UNAVAILABLE: 500,
+14	  DATA_MALFORMED: 500,
+15	  DATA_UPSTREAM_ERROR: 500,
+16	  INTERNAL_ERROR: 500,
+17	};
+18	
+19	/** An error with a stable code and a client-safe message. */
+20	export class AppError extends Error {
+[… 37 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/src/routes/earn-products.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// src/routes/earn-products.ts
+2	import type { Request, Response } from "express";
+3	import type { MeridianEarnClient } from "../meridian/client";
+4	import { getEarnProducts } from "../domain/earn-products";
+5	import { parseTier } from "../domain/tiers";
+6	import { toStructuredError } from "../errors";
+7	
+8	/** Builds the GET /earn-products handler, bound to a Meridian client. */
+9	export function earnProductsHandler(client: MeridianEarnClient) {
+10	  return async (req: Request, res: Response): Promise<void> => {
+11	    try {
+12	      const tier = parseTier(req.query.tier);
+13	      const products = await getEarnProducts(client, tier);
+14	      res.status(200).json(products);
+15	    } catch (err) {
+16	      const { status, body } = toStructuredError(err);
+17	      res.status(status).json(body);
+18	    }
+19	  };
+20	}
+[… 1 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/tiers.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// src/domain/tiers.ts
+2	import { AppError } from "../errors";
+3	import type { RawLockType } from "../meridian/schema";
+4	
+5	export type Tier = "Standard" | "Premium" | "Private";
+6	export type AccessModel = "instant-access" | "restricted";
+7	
+8	const RESTRICTED_TYPES = new Set(["bonded", "hybrid", "timed"]);
+9	// `flex` is intentionally absent: Meridian Rewards strategies are filtered out
+10	// before tiering (see transform.ts), so flex never reaches accessModel.
+11	const INSTANT_TYPES = new Set(["instant"]);
+12	
+13	/**
+14	 * Classifies a lock type by withdrawal-side structural signals.
+15	 * `bonding_period` is deliberately ignored — it delays when rewards start, not withdrawal.
+16	 */
+17	export function accessModel(lockType: RawLockType): AccessModel {
+18	  const hasLockSignal =
+19	    (lockType.unbonding_period ?? 0) > 0 ||
+20	    (lockType.exit_queue_period ?? 0) > 0 ||
+[… 34 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/test/transform.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// test/transform.test.ts
+2	import { describe, it, expect } from "vitest";
+3	import Big from "big.js";
+4	import {
+5	  buildProduct,
+6	  displayName,
+7	  resolveAsset,
+8	} from "../src/domain/transform";
+9	import type { AssetMap, RawAsset, RawStrategy } from "../src/meridian/schema";
+10	
+11	const strat = (
+12	  over: Partial<RawStrategy> & Pick<RawStrategy, "id" | "asset">,
+13	): RawStrategy => ({
+14	  lock_type: { type: "instant", payout_frequency: 604800 },
+15	  apr_estimate: { low: "8.0000" },
+16	  user_min_allocation: "0.01",
+17	  auto_compound: { type: "disabled" },
+18	  can_allocate: true,
+19	  ...over,
+20	});
+[… 110 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/test/endpoint.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// test/endpoint.test.ts
+2	import { describe, it, expect, beforeEach, afterEach } from "vitest";
+3	import { promises as fs } from "fs";
+4	import * as os from "os";
+5	import * as path from "path";
+6	import request from "supertest";
+7	import { createApp } from "../src/app";
+8	import { FileMockMeridianClient } from "../src/meridian/mock-client";
+9	
+10	let dir: string;
+11	
+12	beforeEach(async () => {
+13	  dir = await fs.mkdtemp(path.join(os.tmpdir(), "earn-e2e-"));
+14	});
+15	afterEach(async () => {
+16	  await fs.rm(dir, { recursive: true, force: true });
+17	});
+18	
+19	async function write(name: string, content: unknown): Promise<void> {
+20	  await fs.writeFile(path.join(dir, name), JSON.stringify(content), "utf8");
+[… 124 more line(s) truncated …]
+```
+
+</details>
+
+### 🤖 Claude
+
+The patterns are clear. Before writing tests, a quick probe of `Intl` behaviour so the test assertions are exact (this is research, not production code):
+
+- 🔧 **Bash** — `node -e '`  *(+ more lines)*
+
+<details><summary>↳ tool result</summary>
+
+```
+en-US: "4.25%"
+de-DE: "4,25 %"
+tr-TR: "%4,25"
+8 en-US: "8.00%"
+getCanonicalLocales("de-DE"): ["de-DE"]
+getCanonicalLocales("de-de"): ["de-DE"]
+getCanonicalLocales("de_DE"): THROWS RangeError
+getCanonicalLocales("english"): ["english"]
+getCanonicalLocales("!!"): THROWS RangeError
+getCanonicalLocales("e"): THROWS RangeError
+getCanonicalLocales("fr"): ["fr"]
+getCanonicalLocales("not a locale"): THROWS RangeError
+```
+
+</details>
+
+### 🤖 Claude
+
+`Intl` confirmed: `en-US`→`"4.25%"` (matches the brief), `de-DE`→`"4,25 %"`, `tr-TR`→`"%4,25"`; `de_DE` (underscore typo) throws. Let me see the service test's call pattern:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/test/earn-products-service.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	// test/earn-products-service.test.ts
+2	import { describe, it, expect } from "vitest";
+3	import { getEarnProducts } from "../src/domain/earn-products";
+4	import type { MeridianEarnClient } from "../src/meridian/client";
+5	import type { RawStrategy, AssetMap } from "../src/meridian/schema";
+6	
+7	const assets: AssetMap = {
+8	  XETH: { altname: "ETH", status: "enabled" },
+9	  SOL: { altname: "SOL", status: "enabled" },
+10	  POL: { altname: "MATIC", status: "enabled" },
+11	};
+12	
+13	const instant = (id: string, asset: string, low: string): RawStrategy => ({
+14	  id,
+15	  asset,
+16	  lock_type: { type: "instant", payout_frequency: 604800 },
+17	  apr_estimate: { low },
+18	  user_min_allocation: "0",
+19	  auto_compound: { type: "disabled" },
+20	  can_allocate: true,
+[… 113 more line(s) truncated …]
+```
+
+</details>
+
+### 🤖 Claude
+
+Patterns confirmed. Starting the TDD cycles.
+
+**Cycle 1 — RED: write the `locale.ts` tests.**
+
+- 🔧 **Write** — `/Users/james/dev/pws-se-assessment-20260506/test/locale.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+File created successfully at: /Users/james/dev/pws-se-assessment-20260506/test/locale.test.ts (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/locale.test.ts 2>&1 | tail -15`
+
+<details><summary>↳ tool result</summary>
+
+```
+ ❯ test/locale.test.ts (0 test)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/locale.test.ts [ test/locale.test.ts ]
+Error: Failed to load url ../src/domain/locale (resolved id: ../src/domain/locale) in /Users/james/dev/pws-se-assessment-20260506/test/locale.test.ts. Does the file exist?
+ ❯ loadAndTransform node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:51969:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  no tests
+   Start at  14:59:15
+   Duration  264ms (transform 27ms, setup 0ms, collect 0ms, tests 0ms, environment 0ms, prepare 49ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+RED confirmed — module missing. **GREEN step 1: implement `parseLocale`** (+ `INVALID_LOCALE` error code).
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/errors.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/errors.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Write** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+File created successfully at: /Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/locale.test.ts 2>&1 | tail -16`
+
+<details><summary>↳ tool result</summary>
+
+```
+TypeError: formatApyDisplay is not a function
+ ❯ test/locale.test.ts:54:12
+     52| 
+     53|   it("localises the percent-sign position (tr-TR leads with %)", () =>…
+     54|     expect(formatApyDisplay(new Big("4.25"), "tr-TR").startsWith("%"))…
+       |            ^
+     55|       true,
+     56|     );
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 5 passed (9)
+   Start at  14:59:46
+   Duration  294ms (transform 38ms, setup 0ms, collect 26ms, tests 5ms, environment 0ms, prepare 56ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+parseLocale GREEN (5 pass), formatApyDisplay RED (4 fail). **GREEN step 2: implement `formatApyDisplay`.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/locale.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/locale.test.ts 2>&1 | tail -8`
+
+<details><summary>↳ tool result</summary>
+
+```
+ ✓ test/locale.test.ts (9 tests) 15ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  15:00:02
+   Duration  282ms (transform 30ms, setup 0ms, collect 28ms, tests 15ms, environment 0ms, prepare 47ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+All 9 locale tests pass. **Cycle 2 — RED: add the `buildProduct` locale test.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/test/transform.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/test/transform.test.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/transform.test.ts 2>&1 | tail -14`
+
+<details><summary>↳ tool result</summary>
+
+```
+    135|       "de-DE",
+    136|     );
+    137|     expect(product.apyDisplay).toContain("4,25");
+       |                                ^
+    138|     expect(product.apyValue).toBe(4.25);
+    139|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  15:00:23
+   Duration  291ms (transform 44ms, setup 0ms, collect 40ms, tests 8ms, environment 0ms, prepare 49ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+RED — `apyDisplay` is `"4.25%"`, test wants the comma. **GREEN: add `locale` to `buildProduct`.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/transform.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/transform.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/transform.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/transform.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/transform.test.ts 2>&1 | tail -7`
+
+<details><summary>↳ tool result</summary>
+
+```
+ ✓ test/transform.test.ts (10 tests) 16ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  15:00:53
+   Duration  319ms (transform 38ms, setup 0ms, collect 40ms, tests 16ms, environment 0ms, prepare 40ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+All 10 transform tests pass. **Cycle 3 — RED: add the `getEarnProducts` locale test.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/test/earn-products-service.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/test/earn-products-service.test.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/earn-products-service.test.ts 2>&1 | tail -12`
+
+<details><summary>↳ tool result</summary>
+
+```
+    136|     expect(product.apyDisplay).toContain(",");
+       |                                ^
+    137|     expect(product.apyDisplay).not.toContain(".");
+    138|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  15:01:12
+   Duration  332ms (transform 56ms, setup 0ms, collect 58ms, tests 21ms, environment 0ms, prepare 56ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+RED confirmed. **GREEN: thread `locale` through `getEarnProducts`.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/earn-products.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/earn-products.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/domain/earn-products.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/domain/earn-products.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/earn-products-service.test.ts 2>&1 | tail -7`
+
+<details><summary>↳ tool result</summary>
+
+```
+ ✓ test/earn-products-service.test.ts (9 tests) 18ms
+
+ Test Files  1 passed (1)
+      Tests  9 passed (9)
+   Start at  15:01:34
+   Duration  336ms (transform 48ms, setup 0ms, collect 53ms, tests 18ms, environment 0ms, prepare 49ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+All 9 service tests pass. **Cycle 4 — RED: add the endpoint `?locale` tests.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/test/endpoint.test.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/test/endpoint.test.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run test/endpoint.test.ts 2>&1 | tail -12`
+
+<details><summary>↳ tool result</summary>
+
+```
+    166|     expect(res.status).toBe(400);
+       |                        ^
+    167|     expect(res.body.error.code).toBe("INVALID_LOCALE");
+    168|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 8 passed (10)
+   Start at  15:01:57
+   Duration  519ms (transform 73ms, setup 0ms, collect 189ms, tests 72ms, environment 0ms, prepare 57ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+RED — 2 fail (localisation + the 400). **GREEN: wire `?locale` into the route.**
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/routes/earn-products.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/routes/earn-products.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/src/routes/earn-products.ts`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/src/routes/earn-products.ts has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Bash** — `npx vitest run 2>&1 | tail -18`
+
+<details><summary>↳ tool result</summary>
+
+```
+ ✓ test/filters.test.ts (10 tests) 4ms
+ ✓ test/tiers.test.ts (9 tests) 3ms
+ ✓ test/schema.test.ts (10 tests) 6ms
+ ✓ test/earn-products-service.test.ts (9 tests) 19ms
+ ✓ test/transform.test.ts (10 tests) 17ms
+ ✓ test/mock-client.test.ts (15 tests) 141ms
+ ✓ test/app.test.ts (4 tests) 21ms
+ ✓ test/apy.test.ts (17 tests) 183ms
+ ✓ test/errors.test.ts (4 tests) 2ms
+ ✓ test/locale.test.ts (9 tests) 15ms
+ ✓ test/endpoint.test.ts (10 tests) 94ms
+
+ Test Files  11 passed (11)
+      Tests  107 passed (107)
+   Start at  15:02:27
+   Duration  658ms (transform 580ms, setup 0ms, collect 1.13s, tests 505ms, environment 1ms, prepare 917ms)
+```
+
+</details>
+
+### 🤖 Claude
+
+All **107 tests pass** (11 files, up from 93). Now verifying the build, lint, and formatting — vitest doesn't type-check, but the Docker build runs `tsc`:
+
+- 🔧 **Bash** — `npm run build 2>&1 | tail -6 && echo "=== LINT ===" && npm run lint 2>&1 | tail -8 && echo "=== FORMAT ===" &&…`
+
+<details><summary>↳ tool result</summary>
+
+```
+> aurora-earn-products@1.0.0 build
+> tsc
+
+=== LINT ===
+
+> aurora-earn-products@1.0.0 lint
+> eslint .
+
+=== FORMAT ===
+
+> aurora-earn-products@1.0.0 format:check
+> prettier --check .
+
+Checking formatting...
+[warn] test/app.test.ts
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.
+```
+
+</details>
+
+### 🤖 Claude
+
+`tsc` and `eslint` are clean. `prettier` flags one file — `test/app.test.ts` — which I **didn't touch**: a pre-existing formatting issue committed earlier. None of my new/modified files are flagged. Let me fix that pre-existing issue so the repo passes its own `format:check`:
+
+- 🔧 **Bash** — `git diff --stat HEAD -- test/app.test.ts && echo "(^ pre-existing — confirming I didn't modify it; empty = unm…`
+
+<details><summary>↳ tool result</summary>
+
+```
+(^ pre-existing — confirming I didn't modify it; empty = unmodified by me)
+test/app.test.ts 42ms
+=== re-check ===
+
+Checking formatting...
+All matched files use Prettier code style!
+```
+
+</details>
+
+### 🤖 Claude
+
+Repo is now fully `format:check`-clean. Now the Docker verification — and critically, confirming `node:22-slim` has **full ICU** so non-English locales actually format in the container:
+
+- 🔧 **Bash** — `docker compose up --build -d 2>&1 | tail -4`
+
+<details><summary>↳ tool result</summary>
+
+```
+ Container pws-se-assessment-20260506-earn-products-1 Creating 
+ Container pws-se-assessment-20260506-earn-products-1 Created 
+ Container pws-se-assessment-20260506-earn-products-1 Starting 
+ Container pws-se-assessment-20260506-earn-products-1 Started
+```
+
+</details>
+
+- 🔧 **Bash** — `sleep 1; echo "=== en-US default (no locale) ===" && curl -s 'http://localhost:3000/earn-products?tier=premium…`
+
+<details><summary>↳ tool result</summary>
+
+```
+=== en-US default (no locale) ===
+[{'asset': 'DOT', 'apyDisplay': '8.32%'}, {'asset': 'USDC', 'apyDisplay': '7.50%'}, {'asset': 'ETH', 'apyDisplay': '4.00%'}, {'asset': 'ADA', 'apyDisplay': '3.04%'}]
+
+=== de-DE ===
+[{'asset': 'DOT', 'apyDisplay': '8,32\xa0%'}, {'asset': 'USDC', 'apyDisplay': '7,50\xa0%'}, {'asset': 'ETH', 'apyDisplay': '4,00\xa0%'}, {'asset': 'ADA', 'apyDisplay': '3,04\xa0%'}]
+
+=== tr-TR ===
+[{'asset': 'DOT', 'apyDisplay': '%8,32'}, {'asset': 'USDC', 'apyDisplay': '%7,50'}, {'asset': 'ETH', 'apyDisplay': '%4,00'}, {'asset': 'ADA', 'apyDisplay': '%3,04'}]
+
+=== malformed locale (expect 400 INVALID_LOCALE) ===
+{"error":{"code":"INVALID_LOCALE","message":"locale \"de_DE\" is not a valid BCP 47 language tag"}} [HTTP 400]
+```
+
+</details>
+
+### 🤖 Claude
+
+Full ICU works in the container — de-DE `8,32 %`, tr-TR `%8,32`, en-US default `8.32%`, malformed → `400 INVALID_LOCALE`. Feature verified end-to-end. Stopping the container and updating docs:
+
+- 🔧 **Bash** — `docker compose down 2>&1 | tail -2`
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/README.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+ Network pws-se-assessment-20260506_default Removing 
+ Network pws-se-assessment-20260506_default Removed
+```
+
+</details>
+
+<details><summary>↳ tool result</summary>
+
+````
+1	# Aurora Bank — Earn Products Service
+2	
+3	A proof-of-concept HTTP service that surfaces Meridian Earn strategies to Aurora Bank's
+4	customers, applying Aurora's business rules (APY threshold, tiered eligibility) and
+5	returning a clean, sorted JSON array ready for Aurora's React Native app.
+6	
+7	Built for the Solutions Engineering take-home assessment. See `ASSESSMENT.md` for the brief
+8	and `solution-design-note.md` for the integration handoff.
+9	
+10	## Running
+11	
+12	```bash
+13	docker-compose up      # or, on Docker Compose v2:  docker compose up
+14	```
+15	
+16	The service starts on `http://localhost:3000` — no env vars, credentials, or setup needed.
+17	
+18	```bash
+19	curl 'http://localhost:3000/earn-products?tier=standard'
+20	curl 'http://localhost:3000/earn-products?tier=premium'
+[… 99 more line(s) truncated …]
+````
+
+</details>
+
+### 🤖 Claude
+
+Now the docs. Let me read the current `solution-design-note.md` for exact text:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/solution-design-note.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	# Solution Design Note — Earn Products Service
+2	
+3	**Audience:** Aurora Bank backend engineering.
+4	**Purpose:** hand off the proof-of-concept that surfaces Meridian crypto earn products to
+5	Aurora's customers, so your team can take it to production.
+6	
+7	## What was built
+8	
+9	A small HTTP service with one endpoint, `GET /earn-products?tier={standard|premium|private}`.
+10	It returns a JSON array of earn products — each with a display name, APY, lock type,
+11	eligible customer tiers, and minimum amount — sorted by APY, highest first, ready for the
+12	mobile app. Invalid input or bad source data returns a structured error object, never a
+13	stack trace.
+14	
+15	## Where the data comes from
+16	
+17	Two Meridian Earn API calls, modelled behind one interface (`MeridianEarnClient`):
+18	
+19	| Call | Purpose |
+20	|---|---|
+[… 61 more line(s) truncated …]
+```
+
+</details>
+
+### 🤖 Claude
+
+Now updating the four docs. Batch 1 — README, CLAUDE.md, solution-design-note:
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/README.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/README.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/README.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/README.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/solution-design-note.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/solution-design-note.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/solution-design-note.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/solution-design-note.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/CLAUDE.md`
+
+<details><summary>⚠️ tool result (error)</summary>
+
+```
+<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
+```
+
+</details>
+
+### 🤖 Claude
+
+CLAUDE.md needs an explicit Read first. Let me read it and the design spec:
+
+- 🔧 **Read** — `/Users/james/dev/pws-se-assessment-20260506/CLAUDE.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+1	# CLAUDE.md
+2	
+3	This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+4	
+5	## Repository status
+6	
+7	This is a **take-home technical assessment**, not an existing application. The repo currently
+8	holds only the brief (`ASSESSMENT.md`), a `README.md`, and mock data under `data/`. No service
+9	code, `Dockerfile`, or `docker-compose.yml` exists yet — building them is the task. Read
+10	`ASSESSMENT.md` in full before writing code; it is the source of truth for requirements and
+11	scoring. Language is the implementer's choice: TypeScript **or** Rust.
+12	
+13	## What must be built
+14	
+15	A small HTTP service that:
+16	- Reads earn-strategy and asset data from local JSON files in `data/`.
+17	- Exposes `GET /earn-products?tier={tier}` (`tier` ∈ `standard`, `premium`, `private`).
+18	- Returns a JSON array of strategies filtered/formatted for the fictional "Aurora Bank",
+19	  sorted by APY descending.
+20	- Ships with a root `Dockerfile` + `docker-compose.yml` so `docker-compose up` alone starts
+[… 93 more line(s) truncated …]
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/CLAUDE.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/CLAUDE.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+- 🔧 **Edit** — `/Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md`
+
+<details><summary>↳ tool result</summary>
+
+```
+The file /Users/james/dev/pws-se-assessment-20260506/docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+
+</details>
+
+### 🤖 Claude
+
+All four docs updated. Final verification — format check and full test suite:
+
+- 🔧 **Bash** — `npm run format:check 2>&1 | tail -4 && echo "=== TEST ===" && npm test 2>&1 | tail -8`
+
+<details><summary>↳ tool result</summary>
+
+```
+> prettier --check .
+
+Checking formatting...
+All matched files use Prettier code style!
+=== TEST ===
+ ✓ test/locale.test.ts (9 tests) 16ms
+ ✓ test/endpoint.test.ts (10 tests) 93ms
+
+ Test Files  11 passed (11)
+      Tests  107 passed (107)
+   Start at  16:03:21
+   Duration  588ms (transform 389ms, setup 0ms, collect 937ms, tests 485ms, environment 1ms, prepare 910ms)
+```
+
+</details>
+
+- 🔧 **Bash** — `git status --short`
+
+<details><summary>↳ tool result</summary>
+
+```
+ M CLAUDE.md
+ M README.md
+ M docs/superpowers/specs/2026-05-20-aurora-earn-products-service-design.md
+ M solution-design-note.md
+ M src/domain/earn-products.ts
+ M src/domain/transform.ts
+ M src/errors.ts
+ M src/routes/earn-products.ts
+ M test/app.test.ts
+ M test/earn-products-service.test.ts
+ M test/endpoint.test.ts
+ M test/transform.test.ts
+?? src/domain/locale.ts
+?? test/locale.test.ts
+```
+
+</details>
+
+### 🤖 Claude
+
+Localised `apyDisplay` is implemented and fully verified.
+
+**Verification — all green:**
+- `npm test` → **107 pass** (14 new, written test-first via TDD)
+- `tsc` build · `eslint` · `prettier` → all clean
+- Docker (`node:22-slim`, full ICU confirmed): `en-US`→`8.32%`, `de-DE`→`8,32 %`, `tr-TR`→`%8,32`, malformed locale→`400 INVALID_LOCALE`
+
+**Changed files:**
+| Area | Files |
+|---|---|
+| New | `src/domain/locale.ts` (`parseLocale` + `formatApyDisplay`), `test/locale.test.ts` |
+| Code | `errors.ts` (`INVALID_LOCALE`), `transform.ts`, `earn-products.ts`, `routes/earn-products.ts` |
+| Tests | `transform`, `earn-products-service`, `endpoint` (+ `app.test.ts` — incidental pre-existing prettier fix) |
+| Docs | `README.md`, `solution-design-note.md`, `CLAUDE.md`, design spec |
+
+The `?locale` param is optional, defaults to `en-US` (so `?tier=premium` alone still returns the brief's exact `"4.25%"`), and the brief's "localised APY display strings" requirement is now genuinely met.
+
+Shall I commit? I'd suggest two commits: **`feat:`** for the locale feature + its docs, and a separate **`chore:`** for the unrelated `test/app.test.ts` formatting fix.
+
+### 👤 Human
+
+yes
+
+- 🔧 **Bash** — `git add test/app.test.ts && git commit -q -m "chore: apply Prettier formatting to test/app.test.ts" && echo "c…`  *(+ more lines)*
+
+<details><summary>↳ tool result</summary>
+
+```
+commit 1 done
+commit 2 done
+c6194bf feat: localise apyDisplay via an optional ?locale parameter
+48165c4 chore: apply Prettier formatting to test/app.test.ts
+09cb811 chore: ignore Python __pycache__
+```
+
+</details>
+
+### 🤖 Claude
+
+Both commits in:
+- `48165c4` — `chore:` Prettier formatting fix
+- `c6194bf` — `feat:` localised `apyDisplay`
+
+`main` is 2 commits ahead of `origin/main`. Push to `origin`?
+
+(And a reminder for later: this locale work — design discussion, TDD cycles, Docker verification — is now part of the session history, so the final `ai-transcript.md` regeneration before submission will capture it.)
+
+### 👤 Human
+
+yes, push it
+
+- 🔧 **Bash** — `git push origin main 2>&1 | tail -4 && echo "--- status ---" && git status -sb | head -1`
+
+<details><summary>↳ tool result</summary>
+
+```
+To github.com:iacomus/aurora-earn-products.git
+   09cb811..c6194bf  main -> main
+--- status ---
+## main...origin/main
+```
+
+</details>
+
+### 🤖 Claude
+
+Pushed — `main` is in sync with `origin/main`.
+
+The localised `apyDisplay` feature is live: the brief's "localised APY display strings" requirement is now genuinely met, end-to-end verified in Docker, 107 tests passing.
+
+**Submission status:**
+
+| Deliverable | State |
+|---|---|
+| Service code + Docker | ✅ now with `?locale` support |
+| `README.md` · `solution-design-note.md` | ✅ updated |
+| `ai-transcript.md` + converter | ✅ committed — **regenerate as the final step before submitting** |
+
+That regeneration is the one action left — `python3 scripts/build-transcript.py`, then commit + push — so the transcript captures this locale feature work (design discussion, TDD, verification), which is good signal for the AI-usage scoring.
+
+### 👤 Human
+
+regenerate the transcript
 
 ---
