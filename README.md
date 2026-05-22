@@ -18,15 +18,30 @@ docker-compose up      # or, on Docker Compose v2:  docker compose up
 
 The service starts on `http://localhost:3000` — no env vars, credentials, or setup needed.
 
+## Exercising the endpoint
+
+`GET /earn-products` takes a required `tier` and an optional `locale`:
+
+- **`tier`** — `standard`, `premium`, or `private` (case-insensitive). Standard customers
+  see only instant-access strategies; Premium and Private also see lock-up strategies.
+- **`locale`** — a BCP 47 tag that localises the `apyDisplay` string. Optional; defaults
+  to `en-US`.
+
 ```bash
+# Standard — instant-access strategies only
 curl 'http://localhost:3000/earn-products?tier=standard'
+
+# Premium / Private — full catalog, incl. bonded/hybrid/timed lock-up strategies
 curl 'http://localhost:3000/earn-products?tier=premium'
-curl 'http://localhost:3000/earn-products?tier=private&locale=de-DE'
+curl 'http://localhost:3000/earn-products?tier=private'
+
+# Localised apyDisplay — "8,32 %" (de-DE) or "%8,32" (tr-TR) instead of "8.32%"
+curl 'http://localhost:3000/earn-products?tier=premium&locale=de-DE'
+curl 'http://localhost:3000/earn-products?tier=premium&locale=tr-TR'
 ```
 
-`tier` is required (`standard`, `premium`, or `private`). `locale` is optional — a BCP 47
-tag (e.g. `de-DE`, `tr-TR`) that localises the `apyDisplay` string; it defaults to
-`en-US`. Each item:
+A success response is a JSON array, filtered to APY ≥ 3% and sorted by APY descending.
+Each item:
 
 ```json
 {
@@ -41,8 +56,31 @@ tag (e.g. `de-DE`, `tr-TR`) that localises the `apyDisplay` string; it defaults 
 }
 ```
 
-On bad input, an unknown route, or unavailable/malformed data the service returns a
-structured error — never a stack trace: `{ "error": { "code": "INVALID_TIER", "message": "..." } }`.
+### Error responses
+
+Bad input, an unknown route, or unavailable/malformed data all return a structured error
+object with a stable `code` and an appropriate HTTP status — never a stack trace:
+
+```bash
+# 400 — tier omitted
+curl 'http://localhost:3000/earn-products'
+# {"error":{"code":"INVALID_TIER","message":"tier must be one of: standard, premium, private"}}
+
+# 400 — tier not recognised
+curl 'http://localhost:3000/earn-products?tier=gold'
+# {"error":{"code":"INVALID_TIER","message":"tier must be one of: standard, premium, private"}}
+
+# 400 — malformed BCP 47 tag
+curl 'http://localhost:3000/earn-products?tier=premium&locale=-bad'
+# {"error":{"code":"INVALID_LOCALE","message":"locale \"-bad\" is not a valid BCP 47 language tag"}}
+
+# 404 — unknown route
+curl 'http://localhost:3000/health'
+# {"error":{"code":"NOT_FOUND","message":"No route for GET /health"}}
+```
+
+A missing or corrupt `data/` directory surfaces the same way — `DATA_UNAVAILABLE` or
+`DATA_MALFORMED` (HTTP 500) — rather than as an unhandled exception.
 
 ## Architecture
 
