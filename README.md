@@ -136,6 +136,9 @@ Deeper reasoning lives in the code comments and `solution-design-note.md`.
 | `big.js` | Exact-decimal arithmetic for all APY maths — APR→APY conversion, the ≥3% threshold, and sort order — keeping rate logic off IEEE-754 float | MIT-licensed, zero dependencies, no native code, no network or filesystem access. |
 
 Dev-only: `typescript`, `tsx`, `vitest`, `supertest` — not present in the runtime image.
+`npm audit` reports moderate advisories in the `vitest`/`vite`/`esbuild` dev toolchain
+(an esbuild dev-server issue); these tools are not in the runtime image, so the running
+service is unaffected. The runtime dependencies above carry no advisories.
 
 The service makes **no outbound network calls at runtime** — all data comes from `data/`.
 
