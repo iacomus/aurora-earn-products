@@ -60,9 +60,10 @@ Premium/Private.
 - **`flex` strategies are excluded entirely.** Meridian's `flex` ("Meridian Rewards") is an
   account-wide passive yield, not a product a customer picks — so it never appears in the
   catalog, for any tier.
-- **Threshold edge.** One asset (POL) has an APR that sits just below 3% as an exact
-  decimal even though it rounds to 3.0 as a floating-point number. Exact-decimal maths
-  keeps it correctly excluded — a conservative compliance posture.
+- **Exact-decimal threshold.** The ≥3% test runs on exact decimals, not floating-point, so
+  an APR like `2.9999999999999999` — which collapses to the IEEE-754 double `3.0` — is read
+  as correctly below 3%. POL carries that value but is already excluded as a `flex` product
+  (see above); the exact-decimal comparison guards any *catalog* strategy near the boundary.
 - **Bad data fails loudly.** Malformed JSON, a missing dataset, an unknown asset code, or
   an error reported in the captured response all produce a structured error — never a
   partial or empty success that hides the problem.
@@ -71,8 +72,8 @@ Premium/Private.
 
 - **Real API client.** Implement `MeridianEarnClient` over HTTPS with API-key auth,
   timeouts, retries, and pagination.
-- **Caching & refresh.** Reward rates change; the PoC reads the data once at startup. Add
-  a sensible TTL or a scheduled refresh.
+- **Caching & refresh.** Reward rates change; the PoC reads the data once, on the first
+  request. Add a sensible TTL or a scheduled refresh.
 - **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
   Aurora's customers span jurisdictions, pass the customer's country to the endpoint and
   filter against Aurora's own per-jurisdiction permissions.

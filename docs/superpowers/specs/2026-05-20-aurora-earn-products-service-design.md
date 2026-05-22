@@ -431,9 +431,10 @@ Each gets a safety note in `README.md`.
 
 `big.js` for the rate maths: the APR→APY conversion, the hard ≥3% threshold, and the APY
 sort all run on exact decimals, never IEEE-754 float — the precision posture a regulated
-bank's compliance rules call for. As an exact decimal, POL's `apr_estimate.low` of
-`2.9999999999999999` — which *parses* to the double `3.0` — is below the threshold, so POL
-is **excluded** (an earlier design parsed APRs as floats, which would have included it).
+bank's compliance rules call for. As an exact decimal, an `apr_estimate.low` of
+`2.9999999999999999` — which *parses* to the double `3.0` — is correctly read as **below**
+the 3% threshold. (POL carries that value but is excluded earlier as a `flex` product; the
+exact-decimal comparison is the safeguard for a *catalog* strategy on the boundary.)
 `big.js` over `decimal.js`: the APY formula raises the per-period rate to an integer period
 count, and `big.js` `pow` with an integer exponent is exact (repeated multiplication);
 `decimal.js`'s rounded `exp(y·ln x)` would add no correctness and more weight.

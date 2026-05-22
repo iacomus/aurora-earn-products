@@ -64,8 +64,8 @@ envelope shape, so graders can add files freely.
   an APY. We take the conservative floor — a compliance-driven bank should not present a
   rate a customer cannot reliably meet — and convert with `APY = (1 + APR/n)^n - 1`,
   compounding only when `auto_compound` is on. All rate maths runs on `big.js` decimals,
-  never IEEE-754 float, so a float-rounding artefact never crosses the 3% threshold (POL's
-  `2.9999…`, which parses to the double `3.0`, stays correctly below it).
+  never IEEE-754 float — so a near-boundary APR like `2.9999999999999999`, which collapses
+  to the IEEE-754 double `3.0`, is still read as correctly below the 3% threshold.
 - **`big.js`, not `decimal.js`.** The APY exponent is an integer period count, and
   `big.js`'s integer `pow` is exact; `decimal.js` would add weight with no added
   correctness here.
