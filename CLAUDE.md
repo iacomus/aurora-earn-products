@@ -12,8 +12,7 @@ one endpoint for the fictional "Aurora Bank":
 default `en-US`) localises `apyDisplay`. Returns a JSON array of earn products, filtered by
 Aurora's business rules and sorted by APY descending.
 
-`ASSESSMENT.md` is the original brief and the source of truth for requirements. The four
-submission deliverables are the service code, `README.md`, `ai-transcript.md`, and
+The four submission deliverables are the service code, `README.md`, `ai-transcript.md`, and
 `solution-design-note.md`; `docs/` and `scripts/` are process artefacts, not deliverables.
 
 ## Commands
