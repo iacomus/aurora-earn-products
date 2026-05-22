@@ -143,8 +143,9 @@ The service makes **no outbound network calls at runtime** — all data comes fr
 
 - **Per-customer geography.** Meridian filters strategies by Aurora's *account* region; finer
   per-customer geo-eligibility would need the customer's country as an input.
-- **`displayName` is synthesised** from asset + lock + yield-source words — the source data
-  has no product-name field. Real product names would come from a content source.
+- **`displayName` is synthesised** from asset + lock + yield-source words — no Meridian
+  endpoint exposes a product or full-asset name. Production would either keep synthesising
+  or source names from Aurora's own product catalog.
 - **APY compounding is capped at daily** — the compounding-period count is capped at 365.
   Compounding finer than daily shifts the APY by less than the displayed 2-decimal
   precision, so the cap costs no visible accuracy. Meridian's data uses weekly-to-monthly
