@@ -5,7 +5,10 @@ customers, applying Aurora's business rules (APY threshold, tiered eligibility) 
 returning a clean, sorted JSON array ready for Aurora's React Native app.
 
 Built for the Solutions Engineering take-home assessment. See `ASSESSMENT.md` for the brief
-and `solution-design-note.md` for the integration handoff.
+and `solution-design-note.md` for the integration handoff. `docs/` holds the design spec
+and implementation plan written while building this, and `scripts/build-transcript.py`
+generated `ai-transcript.md` — process artefacts, not part of the four submission
+deliverables.
 
 ## Running
 
