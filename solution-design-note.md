@@ -38,7 +38,10 @@ in the service changes.
 3. **Apply the filters.** A strategy is kept only if: its APY is at least 3% (Aurora
    compliance rule); your account can allocate to it; its asset is active on Meridian; and
    it is not a `flex` strategy (see edge cases).
-4. **Decide tier visibility** (below) and format the output.
+4. **Decide tier visibility** (below) and format the output. The APY is emitted twice:
+   `apyValue` as a raw number for the app to compute with, and `apyDisplay` as a
+   locale-formatted string for direct rendering — which is what the `locale` parameter
+   controls.
 
 ## How the tier logic works
 
@@ -61,9 +64,8 @@ Premium/Private.
   account-wide passive yield, not a product a customer picks — so it never appears in the
   catalog, for any tier.
 - **Exact-decimal threshold.** The ≥3% test runs on exact decimals, not floating-point, so
-  an APR like `2.9999999999999999` — which collapses to the IEEE-754 double `3.0` — is read
-  as correctly below 3%. POL carries that value but is already excluded as a `flex` product
-  (see above); the exact-decimal comparison guards any *catalog* strategy near the boundary.
+  an APR string sitting microscopically below 3% (e.g. `2.9999999999999999`) is read as
+  correctly below the threshold rather than rounded up across it.
 - **Bad data fails loudly.** Malformed JSON, a missing dataset, an unknown asset code, or
   an error reported in the captured response all produce a structured error — never a
   partial or empty success that hides the problem.
