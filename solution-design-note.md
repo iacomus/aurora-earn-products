@@ -11,7 +11,8 @@ It returns a JSON array of earn products — each with a display name, APY, lock
 eligible customer tiers, and minimum amount — sorted by APY, highest first, ready for the
 mobile app. An optional `locale` query parameter (a BCP 47 tag, default `en-US`) localises
 the `apyDisplay` string. Invalid input or bad source data returns a structured error
-object, never a stack trace.
+object — `{ "error": { "code": ..., "message": ... } }`, with HTTP 400 for bad input and
+5xx for data problems — never a stack trace or a partial result.
 
 ## Where the data comes from
 
@@ -22,9 +23,10 @@ Two Meridian Earn API calls, modelled behind one interface (`MeridianEarnClient`
 | `POST /private/Earn/Strategies` | The earn strategies — asset, lock type, reward rate, minimum amount. Authenticated; the response is scoped to *your* Meridian account. |
 | `GET /public/Assets` | Asset metadata — turns Meridian's internal codes (`XETH`) into customer-facing names (`ETH`). |
 
-The PoC ships a **mock** of these calls that reads saved responses from a local `data/`
-folder. To go live, implement `MeridianEarnClient` with a real HTTP client — nothing else
-in the service changes.
+The PoC ships a **mock** implementation (`FileMockMeridianClient`) that reads saved
+responses from a local `data/` folder — a working reference to mirror. To go live, add a
+second implementation of the same interface backed by a real HTTP client; nothing else in
+the service changes.
 
 ## How a strategy becomes a product
 
@@ -38,10 +40,13 @@ in the service changes.
 3. **Apply the filters.** A strategy is kept only if: its APY is at least 3% (Aurora
    compliance rule); your account can allocate to it; its asset is active on Meridian; and
    it is not a `flex` strategy (see edge cases).
-4. **Decide tier visibility** (below) and format the output. The APY is emitted twice:
-   `apyValue` as a raw number for the app to compute with, and `apyDisplay` as a
-   locale-formatted string for direct rendering — which is what the `locale` parameter
-   controls.
+4. **Decide tier visibility.** Which customer tiers may see the strategy — see *How the
+   tier logic works* below. This populates `eligibleTiers`.
+5. **Format the output.** The APY is emitted twice — `apyValue` as a raw number for the
+   app to compute with, and `apyDisplay` as a locale-formatted string for direct rendering
+   (which is what the `locale` parameter controls). `minimumAmount` is passed through as a
+   string, not a number: it is a crypto quantity, and parsing it to a float would lose
+   precision.
 
 ## How the tier logic works
 
@@ -72,11 +77,28 @@ Premium/Private.
 
 ## Suggested next steps toward production
 
-- **Real API client.** Implement `MeridianEarnClient` over HTTPS with API-key auth,
-  timeouts, retries, and pagination.
+- **Real API client.** Replace the mock with an `HttpMeridianClient` implementing the same
+  interface. `GET /public/Assets` is public; `POST /private/Earn/Strategies` is
+  authenticated — each request needs an `API-Key` header and an `API-Sign` HMAC header
+  computed over an ever-increasing `nonce`. Add request timeouts and retry-with-backoff,
+  respect Meridian's per-key rate limits, page the strategies response if needed, and map
+  Meridian's `error` array onto the service's structured-error model. Nothing else in the
+  service changes.
 - **Caching & refresh.** Reward rates change; the PoC reads the data once, on the first
   request. Add a sensible TTL or a scheduled refresh.
+- **Product display names.** No Meridian endpoint exposes a product or full asset name —
+  only the ticker `altname`. The service synthesises `displayName` from the asset and lock
+  type, which is what Meridian's own apps do. For production, Aurora should decide
+  deliberately: keep synthesising and own the naming convention, or maintain its own
+  product-name catalog.
 - **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
   Aurora's customers span jurisdictions, pass the customer's country to the endpoint and
   filter against Aurora's own per-jurisdiction permissions.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.
+
+## References
+
+- [Meridian Earn — List Strategies](https://docs.meridian.com/api/docs/rest-api/list-strategies/) — primary data source (`POST /private/Earn/Strategies`).
+- [Meridian — Get Asset Info](https://docs.meridian.com/api/docs/rest-api/get-asset-info/) — the `GET /public/Assets` endpoint.
+- [Spot REST Authentication](https://docs.meridian.com/api/docs/guides/spot-rest-auth/) — `API-Key` / `API-Sign` request signing for private endpoints.
+- [Spot REST Rate Limits](https://docs.meridian.com/api/docs/guides/spot-rest-ratelimits/) — the counter model to design backoff against.
