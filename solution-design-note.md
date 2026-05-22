@@ -105,7 +105,7 @@ Premium/Private.
 
 ## References
 
-- [Meridian Earn — List Strategies](https://docs.meridian.com/api/docs/rest-api/list-strategies/) — primary data source (`POST /private/Earn/Strategies`).
-- [Meridian — Get Asset Info](https://docs.meridian.com/api/docs/rest-api/get-asset-info/) — the `GET /public/Assets` endpoint.
-- [Spot REST Authentication](https://docs.meridian.com/api/docs/guides/spot-rest-auth/) — `API-Key` / `API-Sign` request signing for private endpoints.
-- [Spot REST Rate Limits](https://docs.meridian.com/api/docs/guides/spot-rest-ratelimits/) — the counter model to design backoff against.
+- **Meridian Earn — List Strategies** (`POST /private/Earn/Strategies`) — primary data source.
+- **Meridian — Get Asset Info** (`GET /public/Assets`) — asset metadata endpoint.
+- **Spot REST Authentication** — `API-Key` / `API-Sign` request signing for private endpoints.
+- **Spot REST Rate Limits** — the counter model to design backoff against.

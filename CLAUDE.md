@@ -98,6 +98,6 @@ Both files use Meridian's envelope `{ "error": [], "result": ... }`. Strategies 
 
 ## Reference
 
-Meridian Earn Strategies API: <https://docs.meridian.com/api/docs/rest-api/list-strategies> —
-what the mock files represent. The service mocks these calls and reads the local `data/`
+The mock files represent the responses of Meridian's Earn Strategies API — its
+`List Strategies` REST endpoint. The service mocks these calls and reads the local `data/`
 JSON files instead of calling the API at runtime.
