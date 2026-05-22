@@ -91,9 +91,11 @@ Premium/Private.
   type, which is what Meridian's own apps do. For production, Aurora should decide
   deliberately: keep synthesising and own the naming convention, or maintain its own
   product-name catalog.
-- **Per-customer geography.** Meridian filters strategies by *Aurora's account* region. If
-  Aurora's customers span jurisdictions, pass the customer's country to the endpoint and
-  filter against Aurora's own per-jurisdiction permissions.
+- **Per-customer geography.** Meridian's List Strategies endpoint returns only strategies
+  available in *Aurora's account* region — that set is a ceiling, so the service can never
+  surface a product Meridian withheld from Aurora's account. Supporting customers in other
+  jurisdictions would mean taking the customer's country as an input to `/earn-products`
+  and *further* narrowing the list against Aurora's own per-jurisdiction rules.
 - **Hardening.** Add authentication, rate limiting, request logging, and metrics.
 
 ## References
