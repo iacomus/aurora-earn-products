@@ -84,8 +84,12 @@ Premium/Private.
   respect Meridian's per-key rate limits, page the strategies response if needed, and map
   Meridian's `error` array onto the service's structured-error model. Nothing else in the
   service changes.
-- **Caching & refresh.** Reward rates change; the PoC reads the data once, on the first
-  request. Add a sensible TTL or a scheduled refresh.
+- **Caching & refresh.** The PoC reads the data once, on the first request, and holds it
+  for the process lifetime. Meridian's APRs are estimates — trailing averages of past
+  rewards — and the catalog (strategies, caps, restrictions) shifts too, so production
+  must refresh. Meridian documents no fixed update cadence; but because the rates drift
+  gradually rather than jump, an hourly refresh or a short TTL is ample — tighter
+  invalidation adds no customer-visible accuracy.
 - **Product display names.** No Meridian endpoint exposes a product or full asset name —
   only the ticker `altname`. The service synthesises `displayName` from the asset and lock
   type, which is what Meridian's own apps do. For production, Aurora should decide
