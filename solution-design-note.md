@@ -87,9 +87,10 @@ Premium/Private.
 - **Caching & refresh.** The PoC reads the data once, on the first request, and holds it
   for the process lifetime. Meridian's APRs are estimates — trailing averages of past
   rewards — and the catalog (strategies, caps, restrictions) shifts too, so production
-  must refresh. Meridian documents no fixed update cadence; but because the rates drift
-  gradually rather than jump, an hourly refresh or a short TTL is ample — tighter
-  invalidation adds no customer-visible accuracy.
+  must refresh. Meridian exposes no push or webhook for rate changes, so that refresh is a
+  poll — `POST /private/Earn/Strategies` re-fetched on a schedule. Meridian documents no
+  fixed update cadence; but because the rates drift gradually rather than jump, an hourly
+  refresh or a short TTL is ample — tighter invalidation adds no customer-visible accuracy.
 - **Product display names.** No Meridian endpoint exposes a product or full asset name —
   only the ticker `altname`. The service synthesises `displayName` from the asset and lock
   type, which is what Meridian's own apps do. For production, Aurora should decide
